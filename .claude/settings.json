@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path' | { read -r f; python3 \"/Users/<user>/work/llm-lang-experiment/.claude/hooks/align_md_tables.py\" \"$f\"; } 2>/dev/null || true",
+            "statusMessage": "Выравниваю markdown-таблицы..."
+          }
+        ]
+      }
+    ]
+  }
+}
