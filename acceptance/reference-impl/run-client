@@ -1,2 +1,48 @@
 #!/usr/bin/env bash
-exec python3 "$(dirname "$0")/client.py" "$@"
+# Запускает эталонный клиент в Docker-контейнере, не напрямую на хосте.
+#
+# Контейнер клиента подключается к сети контейнера сервера через
+# --network container:<имя> — имя выводится из порта в --server URL
+# (см. run-server: контейнер сервера называется по тому же правилу).
+# Так 127.0.0.1:<port> внутри контейнера клиента совпадает с тем, что
+# слушает сервер, без host-networking и без правки smoke.sh/contract-test.sh.
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091  # путь резолвится в рантайме через BASH_SOURCE
+source "$DIR/_docker.sh"
+
+if [[ $# -lt 2 ]]; then
+  echo "run-client: использование: run-client <push|pull|sync|status> <dir> --server <url>" >&2
+  exit 1
+fi
+
+SUBCOMMAND="$1"
+LOCAL_DIR="$2"
+shift 2
+mkdir -p "$LOCAL_DIR"
+LOCAL_DIR="$(cd "$LOCAL_DIR" && pwd)"
+
+SERVER_URL=""
+declare -a forwarded=("$@")
+i=0
+while [[ $i -lt ${#forwarded[@]} ]]; do
+  if [[ "${forwarded[$i]}" == "--server" ]]; then
+    SERVER_URL="${forwarded[$((i + 1))]}"
+  fi
+  i=$((i + 1))
+done
+if [[ -z "$SERVER_URL" ]]; then
+  echo "run-client: требуется --server <url>" >&2
+  exit 1
+fi
+PORT="${SERVER_URL##*:}"
+PORT="${PORT%%/*}"
+
+NAME="$(container_name_for_port "$PORT")"
+
+ensure_image
+exec docker run --rm \
+  --network "container:$NAME" \
+  -v "$LOCAL_DIR:$LOCAL_DIR" \
+  "$IMAGE" python3 client.py "$SUBCOMMAND" "$LOCAL_DIR" "${forwarded[@]}"

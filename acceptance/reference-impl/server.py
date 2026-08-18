@@ -170,7 +170,11 @@ def main():
     args = p.parse_args()
     DATA_DIR = os.path.abspath(args.data_dir)
     os.makedirs(DATA_DIR, exist_ok=True)
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    # 0.0.0.0, не 127.0.0.1: сервер всегда работает в Docker-контейнере
+    # (см. run-server) — для проброса порта (-p) наружу и для клиента,
+    # подключённого через --network container:<имя>, слушать нужно на
+    # всех интерфейсах контейнера, иначе оба пути к серверу не работают.
+    server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     server.serve_forever()
 
 
