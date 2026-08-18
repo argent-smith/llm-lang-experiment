@@ -19,10 +19,23 @@ services:
     command: ["python3", "server.py", "--data-dir", "/data", "--port", "${PORT:?PORT is required}"]
     ports:
       - "${PORT:?PORT is required}:${PORT:?PORT is required}"
+    # cached: хост — источник истины для этого тома, контейнеру можно
+    # чуть отставать в обмен на скорость (актуально для legacy
+    # gRPC-FUSE на Docker Desktop; VirtioFS и Linux-бэкенды этот
+    # модификатор игнорируют, но не отвергают).
     volumes:
-      - "${DATA_DIR:-/tmp/syncbox-unused}:/data"
+      - "${DATA_DIR:-/tmp/syncbox-unused}:/data:cached"
 
   client:
     build: .
+    # profiles, а не depends_on: client не должен подниматься при голом
+    # `docker compose up` (без него — старт с пустым CMD, там нет
+    # команды по умолчанию) и не должен сам поднимать server как
+    # неявную зависимость (это ровно то, от чего отказались с
+    # network_mode выше — тест «сервер недоступен» должен оставаться
+    # тестом). Явный `docker compose run client ...` (см. run-client)
+    # работает независимо от профиля — так и было задумано в самом
+    # compose: явное указание сервиса всегда обходит profile-фильтр.
+    profiles: ["client"]
     volumes:
-      - "${LOCAL_DIR:-/tmp/syncbox-unused}:${LOCAL_DIR:-/tmp/syncbox-unused}"
+      - "${LOCAL_DIR:-/tmp/syncbox-unused}:${LOCAL_DIR:-/tmp/syncbox-unused}:cached"
