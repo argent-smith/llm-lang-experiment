@@ -12,4 +12,4 @@
 
 Запуск: `run-server --data-dir <path> --port <n>` и
 `run-client <push|pull|sync|status> <dir> --server <url>` — конвенция из
-[SYNCBOX-SPEC.md](../../SYNCBOX-SPEC.md).
+[SYNCBOX-SPEC.md](../../docs/SYNCBOX-SPEC.md).

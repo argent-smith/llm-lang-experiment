@@ -25,7 +25,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-SCHEMA="$REPO_ROOT/syncbox-openapi.yaml"
+SCHEMA="$REPO_ROOT/docs/syncbox-openapi.yaml"
 
 IMPL_DIR="${1:?Использование: contract-test.sh <impl-dir> [port]}"
 PORT="${2:-18081}"

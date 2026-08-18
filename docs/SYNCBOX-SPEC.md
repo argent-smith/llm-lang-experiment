@@ -9,7 +9,7 @@
 поведение.
 
 Почему проект с нуля, а не готовый опенсорс-проект — см. раздел
-«Полигон» в [CLAUDE.md](CLAUDE.md).
+«Полигон» в [CLAUDE.md](../CLAUDE.md).
 
 ## Назначение
 
@@ -106,13 +106,13 @@ push/pull/sync/status) в OpenAPI не входит — стандартной �
 
 Поскольку HTTP API и CLI зафиксированы буквально, для проверки готовности
 на любом языке подходит один и тот же чёрный ящик:
-[acceptance/smoke.sh](acceptance/smoke.sh). Он поднимает сервер, гоняет
+[acceptance/smoke.sh](../acceptance/smoke.sh). Он поднимает сервер, гоняет
 `push`/`sync`/`status`/`pull` через реальный HTTP и сверяет побайтовые
 хеши — не заглядывая в код реализации. Проверен на служебной эталонной
 реализации в `acceptance/reference-impl` (не язык эксперимента, см. её
 README) и подключён в CI (`.github/workflows/acceptance.yml`).
 
-Отдельно — [acceptance/contract-test.sh](acceptance/contract-test.sh):
+Отдельно — [acceptance/contract-test.sh](../acceptance/contract-test.sh):
 формальная контрактная проверка HTTP-поверхности через Schemathesis,
 генерирующий тест-кейсы (включая мусорные и граничные значения `key`)
 прямо из `syncbox-openapi.yaml` и бьющий ими в реальный сервер. Проверяет

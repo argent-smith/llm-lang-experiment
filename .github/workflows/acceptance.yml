@@ -24,7 +24,7 @@ jobs:
         run: pip install openapi-spec-validator schemathesis
 
       - name: Проверить синтаксис syncbox-openapi.yaml
-        run: python -m openapi_spec_validator syncbox-openapi.yaml
+        run: python -m openapi_spec_validator docs/syncbox-openapi.yaml
 
       - name: Прогнать контрактный тест против эталонной реализации
         run: acceptance/contract-test.sh acceptance/reference-impl
