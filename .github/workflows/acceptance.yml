@@ -1,0 +1,17 @@
+name: acceptance
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck acceptance/smoke.sh
+        run: shellcheck acceptance/smoke.sh
+
+      - name: Прогнать smoke-тест против эталонной реализации
+        run: acceptance/smoke.sh acceptance/reference-impl
