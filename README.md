@@ -60,11 +60,9 @@ Ruby не подпадает ни под одну из причин и по об
 
 ## Локальный запуск
 
-`make help` — список целей. `make check` гоняет то же самое, что CI
-(`.github/workflows/acceptance.yml`): shellcheck, markdownlint, валидация
-OpenAPI-схемы, acceptance-смок и контрактный тест против эталонной
-реализации. `make run-server` / `make run-client` поднимают её вручную
-для ручной проверки. Требуются `docker`, `shellcheck`, `python3`, `npx`.
+`make check` — то же самое, что гоняет CI. Предпосылки, полный список
+целей Makefile и решения типичных проблем — в
+[docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 ## Файлы
 
@@ -75,6 +73,8 @@ OpenAPI-схемы, acceptance-смок и контрактный тест пр�
   служебная эталонная реализация в `reference-impl/`, исполняется в
   Docker — обязательное условие для всех «стендов» эксперимента).
 - `docs/` — содержательные документы:
+  - [RUNBOOK.md](docs/RUNBOOK.md) — мануал по запуску и проверке
+    (предпосылки, цели Makefile, типичные проблемы).
   - [SYNCBOX-SPEC.md](docs/SYNCBOX-SPEC.md) — спецификация проекта,
     единого для всех шести языков.
   - [syncbox-openapi.yaml](docs/syncbox-openapi.yaml) — формальная

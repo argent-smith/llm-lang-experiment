@@ -6,7 +6,7 @@ PORT ?= 18080
 VENV ?= .venv
 PYTHON ?= python3
 
-MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md \
+MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	"docs/CFP RubyRussia 2026.md" "docs/Конспект разговора с ментором.md" \
 	acceptance/reference-impl/README.md
 
