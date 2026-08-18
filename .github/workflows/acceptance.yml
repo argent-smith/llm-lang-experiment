@@ -10,8 +10,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: shellcheck acceptance/smoke.sh
-        run: shellcheck acceptance/smoke.sh
+      - name: shellcheck acceptance/smoke.sh и contract-test.sh
+        run: shellcheck acceptance/smoke.sh acceptance/contract-test.sh
 
       - name: Прогнать smoke-тест против эталонной реализации
         run: acceptance/smoke.sh acceptance/reference-impl
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Установить инструменты для OpenAPI
+        run: pip install openapi-spec-validator schemathesis
+
+      - name: Проверить синтаксис syncbox-openapi.yaml
+        run: python -m openapi_spec_validator syncbox-openapi.yaml
+
+      - name: Прогнать контрактный тест против эталонной реализации
+        run: acceptance/contract-test.sh acceptance/reference-impl

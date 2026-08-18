@@ -110,16 +110,21 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(length)
         fpath = key_to_path(key)
         parent = os.path.dirname(fpath)
-        os.makedirs(parent, exist_ok=True)
-        fd, tmp_path = tempfile.mkstemp(dir=parent)
+        tmp_path = None
         try:
+            os.makedirs(parent, exist_ok=True)
+            fd, tmp_path = tempfile.mkstemp(dir=parent)
             with os.fdopen(fd, "wb") as f:
                 f.write(body)
             os.replace(tmp_path, fpath)
-        except Exception:
-            if os.path.exists(tmp_path):
+        except (OSError, UnicodeError):
+            # key декодировался в валидную Python-строку, но не
+            # представим как имя файла на этой файловой системе —
+            # для контракта это тот же случай, что и недопустимый key.
+            if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
-            raise
+            self._send_empty(400)
+            return
         self._send_json(201, {
             "key": key,
             "sha256": sha256_of(fpath),
@@ -141,6 +146,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         os.unlink(fpath)
         self._send_empty(204)
+
+    # Любой метод вне контракта SYNCBOX-SPEC.md (TRACE, OPTIONS, QUERY и
+    # т. п.): без этого http.server отвечает 501, а Schemathesis
+    # (acceptance/contract-test.sh) считает любой 5xx server error и
+    # падает — 405 корректнее и для реального REST-контракта. Обобщённый
+    # fallback вместо do_TRACE/do_OPTIONS/... по одному, потому что
+    # набор HTTP-методов не фиксирован (например, QUERY — черновик RFC).
+    def __getattr__(self, name):
+        if name.startswith("do_"):
+            return lambda: self._send_empty(405)
+        raise AttributeError(name)
 
     def log_message(self, fmt, *args):
         pass
