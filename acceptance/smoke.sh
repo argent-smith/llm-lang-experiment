@@ -241,8 +241,16 @@ test_delete() {
 check "12-server-delete-then-404" test_delete
 
 # тикет 11: клиент понятно сообщает об ошибке при недоступном сервере
+#
+# Хост в зоне .invalid принципиально не резолвится (RFC 2606) — тест не
+# использует "плохой порт на 127.0.0.1", потому что в Docker-обёртке
+# запуск клиента может сам поднимать сеть/сервис с заданным портом
+# (см. run-server/run-client), из-за чего "порт без сервера" перестаёт
+# быть недостижимым. Неразрешимое имя хоста недостижимо при любой такой
+# обвязке — проверяется именно обработка ошибки клиентом, а не то,
+# поднялся ли что-то по этому порту.
 test_client_reports_unreachable_server() {
-  "$RUN_CLIENT" push "$SRC_DIR" --server "http://127.0.0.1:1" \
+  "$RUN_CLIENT" push "$SRC_DIR" --server "http://this-host-does-not-exist.invalid:19999" \
     >"$WORKDIR/err.log" 2>&1
   local code=$?
   [[ $code -ne 0 && -s "$WORKDIR/err.log" ]]

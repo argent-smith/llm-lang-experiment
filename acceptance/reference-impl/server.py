@@ -31,7 +31,11 @@ def safe_key(raw_after_blobs):
         return None
     key = unquote(raw_after_blobs.lstrip("/"))
     parts = key.split("/")
-    if not key or ".." in parts or key.startswith("/"):
+    if not key or ".." in parts or key.startswith("/") or "\x00" in key:
+        # NUL — валидный символ в Python-строке, но os.makedirs/os.replace
+        # кидают ValueError на нём (embedded null character), не
+        # OSError/UnicodeError — раньше это ронял обработчик запроса
+        # необработанным исключением вместо ответа 400.
         return None
     return key
 
@@ -117,10 +121,12 @@ class Handler(BaseHTTPRequestHandler):
             with os.fdopen(fd, "wb") as f:
                 f.write(body)
             os.replace(tmp_path, fpath)
-        except (OSError, UnicodeError):
+        except (OSError, UnicodeError, ValueError):
             # key декодировался в валидную Python-строку, но не
             # представим как имя файла на этой файловой системе —
             # для контракта это тот же случай, что и недопустимый key.
+            # ValueError — на случай похожих отказов ОС на уровне пути
+            # (embedded null и т. п.), которые safe_key ещё не ловит явно.
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
             self._send_empty(400)

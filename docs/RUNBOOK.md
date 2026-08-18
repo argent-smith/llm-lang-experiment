@@ -48,21 +48,22 @@ OpenAPI-схемы) + `make test` (smoke + контрактный тест пр�
 | `make run-client` | `make run-client ARGS="push /tmp/somedir --server http://127.0.0.1:18080"`                                                                   |
 | `make build`      | Форсированно пересобрать образ эталонной реализации — обычно не нужно, `run-server`/`run-client` сами пересобирают лениво по кешу            |
 | `make fmt-tables` | То же самое, что автоматически делает Claude Code hook после `Edit`/`Write` — полезно, если правите markdown не через Claude Code            |
-| `make clean`      | Снести `.venv`, кеши `schemathesis`/`hypothesis`, зависшие контейнеры `syncbox-reference-server-*`                                           |
+| `make clean`      | Снести `.venv`, кеши `schemathesis`/`hypothesis`, зависшие docker compose проекты `syncbox-reference-impl-*`                                 |
 
 ## Типичные проблемы
 
-### На macOS падает только `09-server-has-updated-content-after-sync`
+### На macOS падает `09-server-has-updated-content-after-sync`
 
-Не баг реализации. Docker Desktop делит файлы с контейнером не
-напрямую (VirtioFS/gRPC-FUSE) — свежесозданный контейнер иногда видит
-устаревшее содержимое файла сразу после записи на хосте. Воспроизводится
-даже без нашего кода (`docker run --rm -v $DIR:$DIR alpine cat
-$DIR/file` сразу после правки на хосте — тоже отдаёт старое содержимое).
-На Linux (CI, вероятно и Replit) такой прослойки между контейнером и
-файловой системой нет. Если этот один пункт падает локально на Mac, а
-остальные 12 — нет, ориентируйтесь на CI, не на локальный прогон.
-Подробнее — в `acceptance/reference-impl/README.md`.
+Не баг реализации. При разработке воспроизводился баг file-sharing в
+Docker Desktop (VirtioFS/gRPC-FUSE) — свежесозданный контейнер иногда
+видит устаревшее содержимое bind-mounted файла сразу после записи на
+хосте, воспроизводится даже голым `docker run --rm -v $DIR:$DIR alpine
+cat $DIR/file`. Под текущей compose-обвязкой это не проявилось на
+нескольких чистых прогонах подряд, но первопричина — в самом Docker
+Desktop, не в нашем коде, так что при подозрении на повтор
+ориентируйтесь на CI (Linux, никакой VM-прослойки в bind-mount), а не
+на единичный локальный результат. Подробнее — в
+`acceptance/reference-impl/README.md`.
 
 ### `docker: Cannot connect to the Docker daemon`
 
@@ -73,8 +74,10 @@ Docker Desktop не запущен. На macOS: `open -a Docker`, подожда
 
 Предыдущий прогон не почистился — например, `make run-server` был
 запущен в фоне (`&`) и остановлен не через Ctrl+C, а внешним `kill` не
-той цели. Убрать руками: `docker rm -f
-syncbox-reference-server-<port>`, или `make clean` целиком.
+той цели. Убрать руками: `docker compose -f
+acceptance/reference-impl/docker-compose.yml -p
+syncbox-reference-impl-<port> down --remove-orphans`, или `make clean`
+целиком.
 
 ### `make markdownlint` ругается на длину строк
 

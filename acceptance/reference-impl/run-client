@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Запускает эталонный клиент в Docker-контейнере, не напрямую на хосте.
-#
-# Контейнер клиента подключается к сети контейнера сервера через
-# --network container:<имя> — имя выводится из порта в --server URL
-# (см. run-server: контейнер сервера называется по тому же правилу).
-# Так 127.0.0.1:<port> внутри контейнера клиента совпадает с тем, что
-# слушает сервер, без host-networking и без правки smoke.sh/contract-test.sh.
+# Запускает эталонный клиент через docker compose, не напрямую на хосте.
+# Клиент и сервер — в общей сети проекта (обычная сеть compose, без
+# network_mode/depends_on — см. docker-compose.yml, почему). Порт из
+# полученного --server URL используется только для вычисления имени
+# проекта (project_for_port — то же правило, что и в run-server); сам
+# --server, с которым видит вызов клиент внутри контейнера, переписан
+# на "http://server:<port>" — по имени сервиса, которое резолвит
+# встроенный DNS compose, а не по хосту/порту, которые видел вызывающий
+# снаружи (тот мог быть 127.0.0.1 или заведомо нерезолвящийся хост для
+# теста на недоступный сервер — оба случая корректно доходят до клиента
+# как есть, потому что реальный DNS-запрос идёт от имени "server").
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,11 +28,13 @@ mkdir -p "$LOCAL_DIR"
 LOCAL_DIR="$(cd "$LOCAL_DIR" && pwd)"
 
 SERVER_URL=""
+SERVER_ARG_INDEX=-1
 declare -a forwarded=("$@")
 i=0
 while [[ $i -lt ${#forwarded[@]} ]]; do
   if [[ "${forwarded[$i]}" == "--server" ]]; then
     SERVER_URL="${forwarded[$((i + 1))]}"
+    SERVER_ARG_INDEX=$((i + 1))
   fi
   i=$((i + 1))
 done
@@ -38,11 +44,12 @@ if [[ -z "$SERVER_URL" ]]; then
 fi
 PORT="${SERVER_URL##*:}"
 PORT="${PORT%%/*}"
+forwarded[SERVER_ARG_INDEX]="http://server:${PORT}"
 
-NAME="$(container_name_for_port "$PORT")"
+export LOCAL_DIR PORT
+PROJECT="$(project_for_port "$PORT")"
 
-ensure_image
-exec docker run --rm \
-  --network "container:$NAME" \
-  -v "$LOCAL_DIR:$LOCAL_DIR" \
-  "$IMAGE" python3 client.py "$SUBCOMMAND" "$LOCAL_DIR" "${forwarded[@]}"
+# Не через compose() из _docker.sh: exec не умеет запускать shell-функции,
+# только внешние команды — раскрываем вызов явно.
+exec docker compose -f "$COMPOSE_FILE" -p "$PROJECT" run --rm --build client \
+  python3 client.py "$SUBCOMMAND" "$LOCAL_DIR" "${forwarded[@]}"

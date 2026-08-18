@@ -1,0 +1,28 @@
+# Всё Docker-хозяйство эталонной реализации идёт через compose — run-server
+# и run-client лишь дёргают `docker compose`, сырых `docker run`/`docker
+# build` в обёртках больше нет. PORT/DATA_DIR/LOCAL_DIR подставляются из
+# окружения самими обёртками (см. run-server, run-client).
+#
+# server и client — в общей сети проекта, которую compose создаёт сам
+# (никакого network_mode/depends_on): клиент обращается к серверу по
+# имени сервиса ("server"), это резолвит встроенный DNS compose. Раньше
+# здесь был network_mode: "service:server" (чтобы 127.0.0.1:<port> внутри
+# клиента совпадал с тем, что видит хост) — отказались: он неявно требует
+# запущенный server для самого сетевого прикрепления, из-за чего docker
+# compose run client молча поднимал server, даже если тот не должен был
+# существовать — тест на «сервер недоступен» переставал быть тестом.
+# С обычной сетью «сервер недоступен» — это просто провал резолва DNS
+# или соединения к имени сервиса, без побочных автозапусков.
+services:
+  server:
+    build: .
+    command: ["python3", "server.py", "--data-dir", "/data", "--port", "${PORT:?PORT is required}"]
+    ports:
+      - "${PORT:?PORT is required}:${PORT:?PORT is required}"
+    volumes:
+      - "${DATA_DIR:-/tmp/syncbox-unused}:/data"
+
+  client:
+    build: .
+    volumes:
+      - "${LOCAL_DIR:-/tmp/syncbox-unused}:${LOCAL_DIR:-/tmp/syncbox-unused}"

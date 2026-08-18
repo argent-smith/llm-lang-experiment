@@ -1,14 +1,9 @@
 #!/usr/bin/env bash
-# Запускает эталонный сервер в Docker-контейнере, не напрямую на хосте —
+# Запускает эталонный сервер через docker compose, не напрямую на хосте —
 # изоляция среды выполнения "стенда" от хоста (в т.ч. от особенностей
 # хостовой ФС — см. историю бага с кодировкой ключа на APFS в server.py).
-#
-# Контейнер называется детерминированно по порту (syncbox-reference-
-# server-<port>) — так run-client, зная только --server URL с тем же
-# портом, может подключиться к сети именно этого контейнера через
-# --network container:<имя>, не полагаясь на --network host (который
-# на Docker Desktop не даёт хосту достучаться до порта контейнера —
-# проверено, поэтому используется явный проброс -p).
+# Всё Docker-хозяйство здесь идёт через compose (docker-compose.yml),
+# сырых docker run/build в обёртке нет.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,23 +12,19 @@ source "$DIR/_docker.sh"
 
 DATA_DIR=""
 PORT=""
-declare -a forwarded=()
 args=("$@")
 i=0
 while [[ $i -lt ${#args[@]} ]]; do
   case "${args[$i]}" in
     --data-dir)
       DATA_DIR="${args[$((i + 1))]}"
-      forwarded+=("--data-dir" "/data")
       i=$((i + 2))
       ;;
     --port)
       PORT="${args[$((i + 1))]}"
-      forwarded+=("--port" "$PORT")
       i=$((i + 2))
       ;;
     *)
-      forwarded+=("${args[$i]}")
       i=$((i + 1))
       ;;
   esac
@@ -46,28 +37,26 @@ fi
 mkdir -p "$DATA_DIR"
 DATA_DIR="$(cd "$DATA_DIR" && pwd)"
 
-NAME="$(container_name_for_port "$PORT")"
-docker rm -f "$NAME" >/dev/null 2>&1 || true
+export DATA_DIR PORT
+# shellcheck disable=SC2034  # используется в compose() из _docker.sh
+PROJECT="$(project_for_port "$PORT")"
 
-ensure_image
+# На случай, если предыдущий прогон на этом же порту не почистился.
+compose down --remove-orphans >/dev/null 2>&1 || true
 
 # Не exec: тому, кто нас запустил (smoke.sh/contract-test.sh), нужно
 # послать нам kill и рассчитывать, что контейнер реально остановится.
-# exec подменил бы этот процесс собой docker run, и обработчик сигнала
-# в bash-скрипте перестал бы существовать — контейнер мог остаться висеть
-# (воспроизведено на практике). Вместо этого держим docker run фоновым
-# job'ом и ждём его через `wait <pid>`, который прерывается сигналом,
-# позволяя trap отработать `docker stop` до выхода из скрипта.
-docker run --rm --name "$NAME" \
-  -p "$PORT:$PORT" \
-  -v "$DATA_DIR:/data" \
-  "$IMAGE" python3 server.py "${forwarded[@]}" &
-DOCKER_PID=$!
+# exec подменил бы этот процесс собой compose up и обработчик сигнала
+# в bash-скрипте перестал бы существовать. Вместо этого держим compose up
+# фоновым job'ом и ждём его через `wait <pid>`, который прерывается
+# сигналом, позволяя trap отработать `compose down` до выхода из скрипта.
+compose up --build server &
+COMPOSE_PID=$!
 
 cleanup() {
-  docker stop "$NAME" >/dev/null 2>&1 || true
-  wait "$DOCKER_PID" 2>/dev/null || true
+  compose down --remove-orphans >/dev/null 2>&1 || true
+  wait "$COMPOSE_PID" 2>/dev/null || true
 }
 trap cleanup EXIT TERM INT
 
-wait "$DOCKER_PID"
+wait "$COMPOSE_PID"

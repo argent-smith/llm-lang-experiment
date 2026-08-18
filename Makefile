@@ -55,8 +55,8 @@ test: smoke contract ## Оба acceptance-теста против IMPL
 check: lint test ## Полный набор: то же, что гоняет CI
 
 .PHONY: build
-build: ## Пересобрать Docker-образ эталонной реализации
-	docker build -t syncbox-reference-impl acceptance/reference-impl
+build: ## Пересобрать образ эталонной реализации (через docker compose build)
+	PORT=0 docker compose -f acceptance/reference-impl/docker-compose.yml build
 
 .PHONY: run-server
 run-server: ## Поднять сервер IMPL вручную (Ctrl+C — остановить); DATA_DIR опционален
@@ -75,7 +75,11 @@ fmt-tables: ## Выровнять markdown-таблицы (то же, что д�
 	done
 
 .PHONY: clean
-clean: ## Убрать venv, кеши тестов и контейнеры reference-impl
+clean: ## Убрать venv, кеши тестов и docker compose проекты reference-impl
 	rm -rf $(VENV) .schemathesis .hypothesis
 	find . -name '__pycache__' -exec rm -rf {} +
-	docker rm -f $$(docker ps -aq --filter "name=syncbox-reference-server") 2>/dev/null || true
+	@docker ps -aq --filter "label=com.docker.compose.project" 2>/dev/null | while read -r cid; do \
+		proj=$$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$$cid" 2>/dev/null); \
+		case "$$proj" in syncbox-reference-impl-*) docker rm -f "$$cid" >/dev/null 2>&1 ;; esac; \
+	done
+	@docker network ls --format '{{.Name}}' 2>/dev/null | grep '^syncbox-reference-impl-' | xargs -r docker network rm >/dev/null 2>&1 || true
