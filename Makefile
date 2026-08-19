@@ -7,8 +7,10 @@ VENV ?= .venv
 PYTHON ?= python3
 
 MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
+	docs/EXPERIMENT-LOG.md \
 	"docs/CFP RubyRussia 2026.md" "docs/Конспект разговора с ментором.md" \
-	acceptance/reference-impl/README.md
+	acceptance/reference-impl/README.md \
+	docs/incidents/2026-08-19-python-ticket1-contamination/README.md
 
 .PHONY: help
 help: ## Список целей
@@ -24,10 +26,11 @@ venv: ## Локальное venv с openapi-spec-validator и schemathesis
 	}
 
 .PHONY: shellcheck
-shellcheck: ## shellcheck по bash-скриптам acceptance/
+shellcheck: ## shellcheck по bash-скриптам acceptance/ и scripts/
 	shellcheck acceptance/smoke.sh acceptance/contract-test.sh \
 		acceptance/reference-impl/run-server acceptance/reference-impl/run-client \
-		acceptance/reference-impl/_docker.sh
+		acceptance/reference-impl/_docker.sh \
+		scripts/run-pilot-ticket.sh
 
 .PHONY: markdownlint
 markdownlint: ## markdownlint по документации
