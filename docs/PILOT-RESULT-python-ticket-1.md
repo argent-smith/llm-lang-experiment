@@ -122,7 +122,7 @@ trap/backgrounding) — качественный сигнал в пользу о
 Итог: на Python отклонений от спецификации не найдено — хорошая база
 для сравнения, когда появится второй язык.
 
-## Code quality / code security (ретроактивно)
+## Code quality (ретроактивно)
 
 Тулинг (`scripts/run-code-quality.sh`) появился 2026-08-20, после того
 как все три тикета Python уже прошли — это разовый ретроактивный скан
@@ -133,16 +133,12 @@ trap/backgrounding) — качественный сигнал в пользу о
 
 **Ruff (quality):** 0 находок.
 
-**Bandit (security):** 1 находка.
-
-- `B104 hardcoded_bind_all_interfaces`: Possible binding to all
-  interfaces (severity=MEDIUM, confidence=MEDIUM) — `server/main.py:43`.
-  По существу — сервер слушает на всех интерфейсах внутри контейнера,
-  что обычно и требуется, чтобы порт был доступен снаружи контейнера
-  (иначе `--data-dir`/`--port` через Docker вообще не имели бы смысла);
-  Bandit не знает о контейнеризации и всегда помечает bind-all как
-  находку среднего риска — не обязательно дефект в контексте этого
-  проекта, но зафиксировано как есть, без ручной фильтрации находок.
+Code security (bandit) тоже гоняли в тот же день — 1 находка
+(`B104 hardcoded_bind_all_interfaces`, severity=MEDIUM). Проверку
+убрали из метода: см.
+[`docs/PILOT-COMPARISON-python-go.md`](PILOT-COMPARISON-python-go.md#code-quality--code-security-исключено),
+там разбор, почему сравнение находок между языками оказалось
+неинформативным.
 
 ## Что дальше
 

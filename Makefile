@@ -60,7 +60,7 @@ contract: venv ## Контрактный тест (Schemathesis) против IM
 test: smoke contract ## Оба acceptance-теста против IMPL
 
 .PHONY: code-quality
-code-quality: ## Code quality + security против IMPL: make code-quality CQ_LANG=python IMPL=/path/to/syncbox-python (не входит в make check — данные для анализа, не гейт цикла ревью)
+code-quality: ## Code quality против IMPL: make code-quality CQ_LANG=python IMPL=/path/to/syncbox-python (не входит в make check — данные для анализа, не гейт цикла ревью; code security пробовали и убрали, см. docs/PILOT-COMPARISON-python-go.md)
 	scripts/run-code-quality.sh $(CQ_LANG) $(IMPL) $(or $(CQ_OUT),/tmp/syncbox-code-quality-$(CQ_LANG))
 
 .PHONY: check
