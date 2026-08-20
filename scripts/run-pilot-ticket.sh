@@ -73,6 +73,17 @@ json.dump(
             # неприемлем — тогда фикс контаминации незаметно перестаёт
             # действовать; лучше упасть явно.
             "failIfUnavailable": True,
+            # без этого агент может сам, по собственному решению, снять
+            # песочницу на конкретную Bash-команду через параметр
+            # dangerouslyDisableSandbox инструмента Bash — под
+            # --dangerously-skip-permissions это не требует чьего-либо
+            # подтверждения. Найдено на живом прогоне (Go, тикет 1,
+            # 2026-08-20): агент 18 раз снимал песочницу ради `docker
+            # buildx`, пишущего в ~/.docker/buildx/activity вне
+            # allowRead — по счастью, ни разу не прочитал ничего за
+            # пределами своей директории, но сама возможность обхода
+            # ровно то, что denyRead/allowRead ниже должны исключать.
+            "allowUnsandboxedCommands": False,
             "filesystem": {
                 "denyRead": [parent],
                 "allowRead": [pilot],
