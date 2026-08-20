@@ -13,7 +13,8 @@ MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	acceptance/reference-impl/README.md \
 	docs/incidents/2026-08-19-python-ticket1-contamination/README.md \
 	docs/incidents/2026-08-20-dontask-permission-denial/README.md \
-	docs/incidents/2026-08-20-sandbox-escape-hatch/README.md
+	docs/incidents/2026-08-20-sandbox-escape-hatch/README.md \
+	docs/incidents/2026-08-20-docker-build-sandbox-gaps/README.md
 
 .PHONY: help
 help: ## Список целей

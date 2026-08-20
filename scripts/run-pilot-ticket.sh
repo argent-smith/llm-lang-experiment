@@ -61,6 +61,7 @@ trap 'rm -f "$SETTINGS_FILE"' EXIT
 
 python3 - "$PARENT_DIR" "$PILOT_DIR" >"$SETTINGS_FILE" <<'PY'
 import json
+import os
 import sys
 
 parent, pilot = sys.argv[1], sys.argv[2]
@@ -87,16 +88,41 @@ json.dump(
             "filesystem": {
                 "denyRead": [parent],
                 "allowRead": [pilot],
+                # docker buildx пишет служебное состояние (не креды —
+                # те в ~/.docker/config.json, сюда не входит) в
+                # ~/.docker/buildx/{activity,current,instances,...} —
+                # без этого сборка образа падает "operation not
+                # permitted" на каждом тикете, где нужен пересобранный
+                # образ, и агент вынужден либо отключать песочницу
+                # целиком (закрыто выше), либо пропускать Docker E2E.
+                "allowWrite": [os.path.expanduser("~/.docker/buildx")],
             },
             "network": {
                 # docker-сокет и локальные HTTP-вызовы (curl к серверу
-                # тикета на 127.0.0.1) не должны блокироваться —
-                # исходящий трафик в интернет (pip/docker pull) в любом
-                # случае идёт из демона Docker, не из сендбоксируемого
-                # процесса, поэтому allowedDomains/strictAllowlist здесь
-                # не трогаем.
+                # тикета на 127.0.0.1) не должны блокироваться.
                 "allowAllUnixSockets": True,
                 "allowLocalBinding": True,
+                # Предположение "исходящий трафик в интернет идёт из
+                # демона Docker, не из сендбоксируемого процесса" не
+                # подтвердилось: на живом прогоне (Go, тикет 2,
+                # 2026-08-20) клиентский процесс `docker build`
+                # (buildx) сам делает HTTPS-запрос за OAuth-токеном к
+                # auth.docker.io и падает с ошибкой проверки
+                # TLS-сертификата — сборка образа, ещё не закешированного
+                # локально, невозможна без явного allowedDomains.
+                # Подтверждено диагностическим прогоном: с этим списком
+                # `docker pull alpine:3.20` (не закешированный) успешен.
+                # Не решает вопрос для будущих языков в общем виде —
+                # свои реестры пакетов (PyPI, RubyGems, npm, opam,
+                # Maven) при необходимости добавлять сюда по факту
+                # обнаружения тем же способом, не заранее списком.
+                "allowedDomains": [
+                    "auth.docker.io",
+                    "registry-1.docker.io",
+                    "production.cloudflare.docker.com",
+                    "*.docker.io",
+                    "*.cloudflare.docker.com",
+                ],
             },
         }
     },
