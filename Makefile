@@ -35,7 +35,7 @@ shellcheck: ## shellcheck по bash-скриптам acceptance/ и scripts/
 	shellcheck acceptance/smoke.sh acceptance/contract-test.sh \
 		acceptance/reference-impl/run-server acceptance/reference-impl/run-client \
 		acceptance/reference-impl/_docker.sh \
-		scripts/run-pilot-ticket.sh
+		scripts/run-pilot-ticket.sh scripts/run-code-quality.sh
 
 .PHONY: markdownlint
 markdownlint: ## markdownlint по документации
@@ -58,6 +58,10 @@ contract: venv ## Контрактный тест (Schemathesis) против IM
 
 .PHONY: test
 test: smoke contract ## Оба acceptance-теста против IMPL
+
+.PHONY: code-quality
+code-quality: ## Code quality + security против IMPL: make code-quality CQ_LANG=python IMPL=/path/to/syncbox-python (не входит в make check — данные для анализа, не гейт цикла ревью)
+	scripts/run-code-quality.sh $(CQ_LANG) $(IMPL) $(or $(CQ_OUT),/tmp/syncbox-code-quality-$(CQ_LANG))
 
 .PHONY: check
 check: lint test ## Полный набор: то же, что гоняет CI

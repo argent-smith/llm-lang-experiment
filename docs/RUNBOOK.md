@@ -22,6 +22,15 @@
 `ubuntu-latest` есть всё, кроме python-пакетов, которые ставит сама
 цель `venv`.
 
+Отдельно, только для `make code-quality` (не входит в `make
+check`/CI — см. ниже): `ruff`/`bandit` (`pip install ruff bandit`) для
+Python, `golangci-lint`/`gosec` (`go install
+github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest` и
+`go install github.com/securego/gosec/v2/cmd/gosec@latest`) для Go.
+Для остальных языков эксперимента (Ruby/Rubocop, JS-TS/ESLint,
+Scala/Scalafix, OCaml) `scripts/run-code-quality.sh` пока не
+реализован — добавляется по факту, когда язык доходит до пилота.
+
 ## Быстрый старт
 
 ```bash
@@ -40,15 +49,16 @@ OpenAPI-схемы) + `make test` (smoke + контрактный тест пр�
 `make help` печатает список с однострочным описанием каждой. Ниже —
 подробности и примеры для тех, где однострочника мало.
 
-| Цель              | Пример                                                                                                                                       |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `make smoke`      | `make smoke PORT=18099` — против другого порта; `make smoke IMPL=path/to/impl` — против другой реализации, когда появится                    |
-| `make contract`   | `make contract` — первый запуск создаёт `.venv` (может занять минуту), дальше быстро                                                         |
-| `make run-server` | `make run-server PORT=9000 DATA_DIR=/tmp/mydata` — поднять сервер вручную для ручных curl-проверок, Ctrl+C останавливает и убирает контейнер |
-| `make run-client` | `make run-client ARGS="push /tmp/somedir --server http://127.0.0.1:18080"`                                                                   |
-| `make build`      | Форсированно пересобрать образ эталонной реализации — обычно не нужно, `run-server`/`run-client` сами пересобирают лениво по кешу            |
-| `make fmt-tables` | То же самое, что автоматически делает Claude Code hook после `Edit`/`Write` — полезно, если правите markdown не через Claude Code            |
-| `make clean`      | Снести `.venv`, кеши `schemathesis`/`hypothesis`, зависшие docker compose проекты `syncbox-reference-impl-*`                                 |
+| Цель                | Пример                                                                                                                                                                                                                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make smoke`        | `make smoke PORT=18099` — против другого порта; `make smoke IMPL=path/to/impl` — против другой реализации, когда появится                                                                                                                                             |
+| `make contract`     | `make contract` — первый запуск создаёт `.venv` (может занять минуту), дальше быстро                                                                                                                                                                                  |
+| `make run-server`   | `make run-server PORT=9000 DATA_DIR=/tmp/mydata` — поднять сервер вручную для ручных curl-проверок, Ctrl+C останавливает и убирает контейнер                                                                                                                          |
+| `make run-client`   | `make run-client ARGS="push /tmp/somedir --server http://127.0.0.1:18080"`                                                                                                                                                                                            |
+| `make build`        | Форсированно пересобрать образ эталонной реализации — обычно не нужно, `run-server`/`run-client` сами пересобирают лениво по кешу                                                                                                                                     |
+| `make fmt-tables`   | То же самое, что автоматически делает Claude Code hook после `Edit`/`Write` — полезно, если правите markdown не через Claude Code                                                                                                                                     |
+| `make clean`        | Снести `.venv`, кеши `schemathesis`/`hypothesis`, зависшие docker compose проекты `syncbox-reference-impl-*`                                                                                                                                                          |
+| `make code-quality` | `make code-quality CQ_LANG=python IMPL=/Users/<user>/work/syncbox-python` — findings в `/tmp/syncbox-code-quality-python-{quality,security}.json` (или `CQ_OUT=<префикс>`); не входит в `make check`, результат не гейтит цикл ревью тикета (CLAUDE.md, раздел «Метод») |
 
 ## Типичные проблемы
 
