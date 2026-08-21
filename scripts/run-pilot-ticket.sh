@@ -34,6 +34,10 @@
 # Пишет:
 #   <output-prefix>.json        — результат --output-format json
 #   <output-prefix>.stderr.log  — stderr прогона
+#   docs/pilot-runs/<язык>/ticket-<N>/<session_id>/ — архивная копия
+#     промпта, спецификации/схемы и результата (для peer review, см.
+#     docs/pilot-runs/README.md); <язык> и <N> определяются по именам
+#     <pilot-dir> и <prompt-file>.
 
 set -euo pipefail
 
@@ -175,3 +179,21 @@ claude -p \
   <"$PROMPT_FILE" \
   >"${OUTPUT_PREFIX}.json" \
   2>"${OUTPUT_PREFIX}.stderr.log"
+
+# Архивация промпта/спецификации/результата в docs/pilot-runs — без
+# этого peer review не может проверить, что именно видел агент, не
+# полагаясь на наши слова. Автоматически на каждый вызов, не вручную:
+# два прогона тикета 2 на Go (2026-08-20) потеряли оригинальный
+# result.json именно потому, что архивация была ручным шагом и не
+# успела случиться до того, как следующая попытка перезаписала файл
+# по тому же пути — см. docs/pilot-runs/README.md.
+LANG_TAG="$(basename "$PILOT_DIR" | sed 's/^syncbox-//')"
+TICKET_TAG="$(basename "$PROMPT_FILE" | sed -E 's/^\.?ticket-([0-9]+)-prompt\.txt$/\1/')"
+SESSION_ID="$(python3 -c "import json; print(json.load(open('${OUTPUT_PREFIX}.json')).get('session_id',''))" 2>/dev/null || echo "unknown-session")"
+ARCHIVE_DIR="$REPO_ROOT/docs/pilot-runs/$LANG_TAG/ticket-$TICKET_TAG/$SESSION_ID"
+mkdir -p "$ARCHIVE_DIR"
+cp "$PROMPT_FILE" "$ARCHIVE_DIR/prompt.txt"
+cp "$PILOT_DIR/SYNCBOX-SPEC.md" "$ARCHIVE_DIR/SYNCBOX-SPEC.md"
+cp "$PILOT_DIR/syncbox-openapi.yaml" "$ARCHIVE_DIR/syncbox-openapi.yaml"
+cp "${OUTPUT_PREFIX}.json" "$ARCHIVE_DIR/result.json"
+echo "Архив попытки: $ARCHIVE_DIR" >&2

@@ -15,7 +15,16 @@ MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	docs/incidents/2026-08-19-python-ticket1-contamination/README.md \
 	docs/incidents/2026-08-20-dontask-permission-denial/README.md \
 	docs/incidents/2026-08-20-sandbox-escape-hatch/README.md \
-	docs/incidents/2026-08-20-docker-build-sandbox-gaps/README.md
+	docs/incidents/2026-08-20-docker-build-sandbox-gaps/README.md \
+	docs/pilot-runs/README.md \
+	docs/pilot-runs/python/ticket-1/attempt-1-9baff2a0-contaminated/NOTE.md \
+	docs/pilot-runs/go/ticket-2/attempt-1-f50e806a-network-blocked/NOTE.md \
+	docs/pilot-runs/go/ticket-2/attempt-2-3eba70a1-buildx-write-blocked/NOTE.md
+
+# Архивные копии SYNCBOX-SPEC.md внутри docs/pilot-runs/ — намеренно
+# НЕ в MD_FILES: это точные исторические снимки того, что видел агент
+# (в т.ч. версии до фикса контаминации), не живая документация — лint
+# или fmt-tables их не трогает и не должен.
 
 .PHONY: help
 help: ## Список целей
