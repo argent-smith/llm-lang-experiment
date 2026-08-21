@@ -1,0 +1,31 @@
+# Явный конфиг для внешней code quality-проверки Ruby-пилота
+# (scripts/run-code-quality.sh) — не конфиг самого пилотного проекта,
+# пилотный агент этот файл не видит.
+#
+# Rubocop без исключений включает по умолчанию разделы
+# Style/Layout/Lint/Naming/Metrics/Security/Bundler/Gemspec — сам
+# дефолт уже конвенциональная база (Ruby Style Guide). Metrics
+# (цикломатическая сложность, длина метода/класса и т. п.) здесь
+# сознательно оставлен включённым, в отличие от Python/Go: в
+# Ruby-сообществе это часть общепринятой практики оценки качества
+# кода через Rubocop, не опциональная надстройка (в отличие от
+# complexity-плагинов, которые в дефолт ruff/golangci-lint не входят
+# — там их отсутствие и есть конвенция для этих экосистем).
+#
+# Отключены только два раздела, сознательно:
+#   - Security — code security исключён из метода отдельным решением,
+#     см. docs/PILOT-COMPARISON-python-go.md, «Code security (исключено)».
+#   - Bundler/Gemspec — у пилотного Ruby-проекта нет .gemspec.
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 4.0
+
+Security:
+  Enabled: false
+
+Bundler:
+  Enabled: false
+
+Gemspec:
+  Enabled: false

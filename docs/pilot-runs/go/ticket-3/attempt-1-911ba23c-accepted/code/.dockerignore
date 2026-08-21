@@ -1,0 +1,6 @@
+.git
+.claude
+*.md
+run-server
+run-client
+docker-compose.yml

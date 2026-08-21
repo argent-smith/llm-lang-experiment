@@ -12,15 +12,37 @@
 # docs/PILOT-COMPARISON-python-go.md, раздел «Code quality / code
 # security (исключено)».
 #
-# По языку — quality-инструмент из таблицы CLAUDE.md:
-#   python -> ruff
-#   go     -> golangci-lint
-# Остальные языки таблицы (Ruby/Rubocop, JS-TS/ESLint, Scala/Scalafix,
-# OCaml) пока не реализованы — добавлять по факту, когда эти языки
-# дойдут до пилота, а не заранее вслепую.
+# По языку — quality-инструмент, с явным, версионируемым конфигом и
+# закреплённой версией инструмента в собственном локальном sandbox'е
+# scripts/code-quality-configs/<язык>/ — в конвенциональном для языка
+# стиле (venv для Python, GOPATH/bin для Go, Bundler для Ruby, npm для
+# JS/TS), не глобальный инструмент и не голый дефолт. Пилотный агент
+# эти файлы не видит — не конфиг самого пилотного проекта.
+#
+#   python -> ruff (venv)                    + code-quality-configs/python/ruff.toml
+#   go     -> golangci-lint (GOPATH)         + code-quality-configs/go/golangci.yml
+#   ruby   -> rubocop + reek (bundle exec)   + code-quality-configs/ruby/.rubocop.yml
+#   js/ts  -> eslint + eslint-plugin-sonarjs (npm) + code-quality-configs/js/eslint.config.js
+#
+# Наборы правил в конфигах — конвенциональные стартовые точки для
+# новых проектов на каждом языке (подтверждено независимо для каждого,
+# не выбрано произвольно — обоснование и источники см. в самих файлах
+# конфигов). Архитектурные/структурные находки (сложность, длина,
+# code smell — LongParameterList, FeatureEnvy и т. п.) сознательно
+# включены везде, не только в Ruby: ruff — категории C90/PLR,
+# golangci-lint — gocyclo/funlen/dupl, reek — отдельным инструментом
+# (не покрывается rubocop), eslint — eslint-plugin-sonarjs.
+#
+# Scala (Scalafix) и OCaml — намеренно не реализованы: Scalafix
+# нуждается в project-specific semanticdb-настройке, которую нельзя
+# осмысленно подготовить заранее без реального пилотного проекта;
+# у OCaml на 2026 год нет общепринятого линтера вообще (ocamllint/
+# ocp-lint мертвы, замены не появилось — подтверждено поиском, не
+# предположено). Оба — добавлять/решать по факту, когда эти языки
+# дойдут до пилота.
 #
 # Использование:
-#   scripts/run-code-quality.sh <python|go> <impl-dir> <output-prefix>
+#   scripts/run-code-quality.sh <python|go|ruby|js> <impl-dir> <output-prefix>
 #
 # Пишет:
 #   <output-prefix>-quality.json
@@ -29,27 +51,71 @@
 
 set -euo pipefail
 
-LANG_NAME="${1:?Использование: run-code-quality.sh <python|go> <impl-dir> <output-prefix>}"
-IMPL_DIR="${2:?Использование: run-code-quality.sh <python|go> <impl-dir> <output-prefix>}"
-OUTPUT_PREFIX="${3:?Использование: run-code-quality.sh <python|go> <impl-dir> <output-prefix>}"
+LANG_NAME="${1:?Использование: run-code-quality.sh <python|go|ruby|js> <impl-dir> <output-prefix>}"
+IMPL_DIR="${2:?Использование: run-code-quality.sh <python|go|ruby|js> <impl-dir> <output-prefix>}"
+OUTPUT_PREFIX="${3:?Использование: run-code-quality.sh <python|go|ruby|js> <impl-dir> <output-prefix>}"
 
 IMPL_DIR="$(cd "$IMPL_DIR" && pwd)"
 GOBIN="$(go env GOPATH 2>/dev/null)/bin"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_DIR="$REPO_ROOT/scripts/code-quality-configs"
+
+case "$LANG_NAME" in
+  javascript|typescript) LANG_NAME="js" ;;
+esac
 
 case "$LANG_NAME" in
   python)
-    command -v ruff >/dev/null 2>&1 || { echo "ruff не установлен (pip install ruff)" >&2; exit 1; }
-    ruff check --output-format json --exit-zero "$IMPL_DIR" >"${OUTPUT_PREFIX}-quality.json"
+    RUFF="$CONFIG_DIR/python/.venv/bin/ruff"
+    [ -x "$RUFF" ] || { echo "ruff не установлен в sandbox (cd $CONFIG_DIR/python && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt)" >&2; exit 1; }
+    "$RUFF" check --config "$CONFIG_DIR/python/ruff.toml" --output-format json --exit-zero "$IMPL_DIR" >"${OUTPUT_PREFIX}-quality.json"
     ;;
   go)
     GOLANGCI="$GOBIN/golangci-lint"
-    [ -x "$GOLANGCI" ] || { echo "golangci-lint не установлен (go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)" >&2; exit 1; }
+    [ -x "$GOLANGCI" ] || { echo "golangci-lint не установлен (go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1)" >&2; exit 1; }
     # --show-stats=false: без него golangci-lint дописывает после JSON
     # человекочитаемую сводку в тот же stdout, ломая парсинг.
-    (cd "$IMPL_DIR" && "$GOLANGCI" run --output.json.path stdout --issues-exit-code 0 --show-stats=false ./...) >"${OUTPUT_PREFIX}-quality.json"
+    (cd "$IMPL_DIR" && "$GOLANGCI" run --config "$CONFIG_DIR/go/golangci.yml" --output.json.path stdout --issues-exit-code 0 --show-stats=false ./...) >"${OUTPUT_PREFIX}-quality.json"
+    ;;
+  ruby)
+    [ -d "$CONFIG_DIR/ruby/vendor/bundle" ] || { echo "rubocop/reek не установлены в sandbox (cd $CONFIG_DIR/ruby && bundle config set --local path 'vendor/bundle' && bundle install)" >&2; exit 1; }
+    # rubocop (стиль/lint, конвенциональный дефолт + Metrics) и reek
+    # (архитектурные code smell — LongParameterList, FeatureEnvy и
+    # т.п., то, что rubocop не покрывает) — два разных инструмента,
+    # объединяем в один JSON с ключом по имени инструмента.
+    # exit 1 у rubocop и exit 2 у reek значат "есть находки", не
+    # ошибка вызова — падаем только на другие коды.
+    set +e
+    (cd "$CONFIG_DIR/ruby" && bundle exec rubocop --config .rubocop.yml --format json --force-exclusion "$IMPL_DIR") >/tmp/rubocop-out.json
+    rubocop_rc=$?
+    (cd "$CONFIG_DIR/ruby" && bundle exec reek --format json "$IMPL_DIR") >/tmp/reek-out.json
+    reek_rc=$?
+    set -e
+    [ "$rubocop_rc" -le 1 ] || { echo "rubocop завершился с кодом $rubocop_rc (не просто находки)" >&2; exit "$rubocop_rc"; }
+    [ "$reek_rc" -eq 0 ] || [ "$reek_rc" -eq 2 ] || { echo "reek завершился с кодом $reek_rc (не просто находки)" >&2; exit "$reek_rc"; }
+    python3 -c "
+import json
+rubocop = json.load(open('/tmp/rubocop-out.json'))
+reek = json.load(open('/tmp/reek-out.json'))
+json.dump({'rubocop': rubocop, 'reek': reek}, open('${OUTPUT_PREFIX}-quality.json', 'w'), ensure_ascii=False, indent=2)
+"
+    rm -f /tmp/rubocop-out.json /tmp/reek-out.json
+    ;;
+  js)
+    [ -d "$CONFIG_DIR/js/node_modules" ] || { echo "eslint не установлен в sandbox (cd $CONFIG_DIR/js && npm install)" >&2; exit 1; }
+    # ESLint по умолчанию отказывается линтить файлы вне каталога
+    # своего конфига ("outside of base path") — запускаем из целевой
+    # директории, конфиг передаём абсолютным путём, как для остальных
+    # языков. exit 1 значит "есть находки", падаем только на 2+
+    # (fatal error — битый конфиг, краш).
+    set +e
+    (cd "$IMPL_DIR" && npx --prefix "$CONFIG_DIR/js" eslint --config "$CONFIG_DIR/js/eslint.config.js" --format json --no-warn-ignored .) >"${OUTPUT_PREFIX}-quality.json"
+    rc=$?
+    set -e
+    [ "$rc" -le 1 ] || { echo "eslint завершился с кодом $rc (не просто находки)" >&2; exit "$rc"; }
     ;;
   *)
-    echo "Язык '$LANG_NAME' пока не поддержан этим скриптом (только python, go)" >&2
+    echo "Язык '$LANG_NAME' пока не поддержан этим скриптом (python, go, ruby, js — Scala/OCaml см. комментарий в начале файла)" >&2
     exit 1
     ;;
 esac

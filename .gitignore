@@ -5,3 +5,7 @@ __pycache__/
 .schemathesis/
 .hypothesis/
 .venv/
+scripts/code-quality-configs/python/.venv/
+scripts/code-quality-configs/ruby/vendor/
+scripts/code-quality-configs/ruby/.bundle/
+scripts/code-quality-configs/js/node_modules/

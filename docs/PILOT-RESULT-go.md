@@ -96,10 +96,14 @@
 [`docs/PILOT-RESULT-python-ticket-1.md`](PILOT-RESULT-python-ticket-1.md#code-quality-ретроактивно).
 Не входит в критерий «сошлось/сдалось».
 
-**golangci-lint (quality):** 6 находок, все один линтер (`errcheck`) —
-непроверенное значение ошибки на `f.Close()` (3 места) и
-`json.NewEncoder(w).Encode(...)` (3 места) в `internal/server/server.go`.
-Типовая, невысокого риска находка для Go — закрытие файла и запись
+**golangci-lint (quality, конфиг `scripts/code-quality-configs/go/golangci.yml`
+— errcheck/govet/ineffassign/revive/staticcheck/unused/gocyclo/funlen/dupl,
+версия 2.13.1):** 9 находок — `errcheck` ×6 (непроверенное значение
+ошибки на `f.Close()`, 3 места, и `json.NewEncoder(w).Encode(...)`,
+3 места, в `internal/server/server.go`), `revive` ×2
+(`unused-parameter` — параметр `r` не используется), `funlen` ×1
+(`TestListBlobs` длиннее порога на одну строку — 61 против 60).
+`errcheck`-находки типовые, невысокого риска — закрытие файла и запись
 ответа клиенту редко проверяют на ошибку в простых обработчиках,
 большинство линтер-конфигов относится к этому терпимо по умолчанию.
 

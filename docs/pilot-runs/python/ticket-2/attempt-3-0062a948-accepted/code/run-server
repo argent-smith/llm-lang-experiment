@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Launches the syncbox server inside a Docker container via docker compose.
+# Usage: run-server --data-dir <path> [--port <n>]
+set -euo pipefail
+
+usage() {
+  echo "usage: run-server --data-dir <path> [--port <n>]" >&2
+  exit 2
+}
+
+DATA_DIR="${SYNCBOX_DATA_DIR:-}"
+PORT="${SYNCBOX_PORT:-8080}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --data-dir)
+      [[ $# -ge 2 ]] || usage
+      DATA_DIR="$2"
+      shift 2
+      ;;
+    --port)
+      [[ $# -ge 2 ]] || usage
+      PORT="$2"
+      shift 2
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+if [[ -z "$DATA_DIR" ]]; then
+  echo "error: --data-dir is required (or set SYNCBOX_DATA_DIR)" >&2
+  exit 2
+fi
+
+mkdir -p "$DATA_DIR"
+DATA_DIR="$(cd "$DATA_DIR" && pwd)"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+export SYNCBOX_DATA_DIR_HOST="$DATA_DIR"
+export SYNCBOX_PORT="$PORT"
+
+cd "$REPO_ROOT"
+
+# Unique project name per port so concurrent servers on different ports
+# (e.g. parallel test runs) don't collide on container/network names.
+exec docker compose -p "syncbox-server-${PORT}" up --build

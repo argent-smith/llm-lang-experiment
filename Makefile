@@ -72,6 +72,16 @@ test: smoke contract ## Оба acceptance-теста против IMPL
 code-quality: ## Code quality против IMPL: make code-quality CQ_LANG=python IMPL=/path/to/syncbox-python (не входит в make check — данные для анализа, не гейт цикла ревью; code security пробовали и убрали, см. docs/PILOT-COMPARISON-python-go.md)
 	scripts/run-code-quality.sh $(CQ_LANG) $(IMPL) $(or $(CQ_OUT),/tmp/syncbox-code-quality-$(CQ_LANG))
 
+.PHONY: code-quality-setup
+code-quality-setup: ## Установить локальные sandbox'ы code quality (venv/bundle/npm — конвенциональный для языка стиль, закреплённые версии) для python/ruby/js
+	cd scripts/code-quality-configs/python && python3 -m venv .venv && .venv/bin/pip install --quiet --upgrade pip && .venv/bin/pip install --quiet -r requirements.txt
+	cd scripts/code-quality-configs/ruby && bundle config set --local path 'vendor/bundle' && bundle install --quiet
+	cd scripts/code-quality-configs/js && npm install --silent
+
+.PHONY: pilot-ticket
+pilot-ticket: ## Прогнать один тикет пилота целиком (реализация + архивация docs/pilot-runs/ + code quality): make pilot-ticket PILOT_DIR=/Users/you/work/syncbox-python PROMPT=/path/to/.ticket-1-prompt.txt OUT=.ticket-1-result
+	scripts/run-pilot-ticket.sh $(PILOT_DIR) $(PROMPT) $(OUT)
+
 .PHONY: check
 check: lint test ## Полный набор: то же, что гоняет CI
 

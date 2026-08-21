@@ -196,4 +196,26 @@ cp "$PROMPT_FILE" "$ARCHIVE_DIR/prompt.txt"
 cp "$PILOT_DIR/SYNCBOX-SPEC.md" "$ARCHIVE_DIR/SYNCBOX-SPEC.md"
 cp "$PILOT_DIR/syncbox-openapi.yaml" "$ARCHIVE_DIR/syncbox-openapi.yaml"
 cp "${OUTPUT_PREFIX}.json" "$ARCHIVE_DIR/result.json"
+
+# Код, который написал агент, — тоже архивируется, не только промпт и
+# результат: без него нечего проверять code quality в CI, и нечего
+# независимо прочитать peer review. Свои же служебные файлы (промпты
+# прошлых тикетов, .git, если он вдруг появится) исключены — это не
+# код агента. denyRead на родителя пилотной директории (см. sandbox
+# выше) покрывает и docs/pilot-runs/ этого мета-репозитория тем же
+# образом, что и acceptance/reference-impl — SYNCBOX-SPEC.md никогда
+# не должен называть или описывать этот архив по пути, иначе получим
+# повтор исходного инцидента контаминации с новым именем директории.
+rsync -a --exclude='.ticket-*' --exclude='.git' "$PILOT_DIR/" "$ARCHIVE_DIR/code/"
+
+# Code quality — автоматически на каждый прогон (то, что раньше
+# называлось "CI" в CLAUDE.md только на словах): не гейтит цикл ревью,
+# только данные. Молча пропускается для языков, для которых
+# run-code-quality.sh ещё не реализован (Scala/OCaml) — не ошибка.
+if "$REPO_ROOT/scripts/run-code-quality.sh" "$LANG_TAG" "$PILOT_DIR" "$ARCHIVE_DIR/quality" 2>"$ARCHIVE_DIR/quality.stderr.log"; then
+  echo "Code quality: $ARCHIVE_DIR/quality-quality.json" >&2
+else
+  echo "Code quality для '$LANG_TAG' не прогнан (см. $ARCHIVE_DIR/quality.stderr.log) — не критично, не гейт" >&2
+fi
+
 echo "Архив попытки: $ARCHIVE_DIR" >&2

@@ -131,7 +131,9 @@ trap/backgrounding) — качественный сигнал в пользу о
 срезов нет). Не входит в критерий «сошлось/сдалось» (CLAUDE.md,
 раздел «Метод») — только данные для последующего анализа.
 
-**Ruff (quality):** 0 находок.
+**Ruff (quality, конфиг `scripts/code-quality-configs/python/ruff.toml` —
+E/W/F/UP/B/I/C90/PLR, версия 0.16.4 в локальном venv):** 2 находки —
+`E501` (строка длиннее 88 символов) ×2 в `server/main.py`.
 
 Code security (bandit) тоже гоняли в тот же день — 1 находка
 (`B104 hardcoded_bind_all_interfaces`, severity=MEDIUM). Проверку

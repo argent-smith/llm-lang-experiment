@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Runs the Syncbox server inside its Docker container via docker compose,
+# per the run-server convention in SYNCBOX-SPEC.md:
+#   run-server --data-dir <path> --port <n>
+# Runs attached in the foreground (no daemonizing); a signal sent to this
+# process is forwarded to the docker compose CLI, which stops the container.
+set -euo pipefail
+
+data_dir="${SYNCBOX_DATA_DIR:-}"
+port="${SYNCBOX_PORT:-8080}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --data-dir)
+      data_dir="$2"
+      shift 2
+      ;;
+    --data-dir=*)
+      data_dir="${1#*=}"
+      shift
+      ;;
+    --port)
+      port="$2"
+      shift 2
+      ;;
+    --port=*)
+      port="${1#*=}"
+      shift
+      ;;
+    *)
+      echo "run-server: unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$data_dir" ]]; then
+  echo "run-server: --data-dir (or SYNCBOX_DATA_DIR) is required" >&2
+  exit 2
+fi
+
+mkdir -p "$data_dir"
+data_dir="$(cd "$data_dir" && pwd)"
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+export SYNCBOX_DATA_DIR="$data_dir"
+export SYNCBOX_PORT="$port"
+
+cd "$repo_root"
+exec docker compose -p "syncbox-server-${port}" up --build
