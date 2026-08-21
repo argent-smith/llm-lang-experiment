@@ -42,6 +42,20 @@ Code security (bandit/gosec) пробовали и убрали 2026-08-20 — �
 инструмента, проверено поиском) `scripts/run-code-quality.sh` пока не
 реализован — добавляется по факту, когда язык доходит до пилота.
 
+### Пилотный харнес (Docker)
+
+Отдельно, для `make pilot-ticket`/`scripts/run-pilot-ticket.sh`:
+`scripts/pilot-harness.env` с `CLAUDE_CODE_OAUTH_TOKEN` (шаблон и
+инструкция получения — `scripts/pilot-harness.env.example`; сам файл
+гитигнорится, реальный токен в него не коммитится). Образ харнеса
+(`scripts/pilot-harness.Dockerfile`, тег `pilot-harness:latest`)
+собирается автоматически при первом вызове и пересобирается, если
+Dockerfile правился после последней сборки — руками собирать не нужно.
+Сам вызов `claude -p` идёт не на хосте, а внутри этого контейнера, с
+единственной примонтированной директорией пилота — почему это
+обязательно, а не просто внутренние настройки Claude Code, см.
+[docs/incidents/2026-08-21-write-tool-sandbox-escape/](incidents/2026-08-21-write-tool-sandbox-escape/README.md).
+
 ## Быстрый старт
 
 ```bash
@@ -92,6 +106,16 @@ Desktop, не в нашем коде, так что при подозрении 
 
 Docker Desktop не запущен. На macOS: `open -a Docker`, подождать, пока
 `docker info` не начнёт отвечать без ошибки.
+
+### `Unable to find image 'pilot-harness:latest' locally` сразу после сборки
+
+Docker Desktop с containerd image store (включён по умолчанию) не
+тегирует локально образ, экспортированный `docker build` с
+attestation-манифестом — сборка рапортует «naming to ... done», но
+`docker images` образ не находит. `scripts/run-pilot-ticket.sh` уже
+собирает образ харнеса с `--provenance=false --sbom=false`, что это
+чинит; если находка повторилась на образе, собранном руками —
+добавить те же флаги.
 
 ### `port is already allocated` / контейнер уже существует
 

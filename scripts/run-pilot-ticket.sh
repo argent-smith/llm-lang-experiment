@@ -1,35 +1,56 @@
 #!/usr/bin/env bash
-# Запускает один тикет через Claude Code headless против директории
-# пилотного проекта конкретного языка — с файловой песочницей,
-# физически ограничивающей чтение пределами этой директории.
+# Запускает один тикет через Claude Code headless — сам вызов `claude -p`
+# идёт не на хосте, а внутри Docker-контейнера харнеса
+# (scripts/pilot-harness.Dockerfile), с примонтированной директорией
+# пилота как /workspace и больше ничем.
 #
-# Зачем: первый же реальный прогон (тикет 1, Python, 2026-08-19) показал
+# Зачем контейнер, а не только внутренние настройки Claude Code: первый
+# же реальный прогон (тикет 1, Python, 2026-08-19) показал
 # 100%-воспроизводимую утечку — агент прочитал `acceptance/reference-impl`
-# этого мета-репозитория и скопировал оттуда решения. `--safe-mode`
-# отключает CLAUDE.md/хуки/скиллы/плагины мета-репозитория, но не
-# ограничивает файловую систему — этого недостаточно самого по себе.
-# Разбор: docs/incidents/2026-08-19-python-ticket1-contamination/.
+# этого мета-репозитория и скопировал оттуда решения. Фикс первого
+# раунда (`--safe-mode` + `sandbox.filesystem.denyRead/allowRead` через
+# `--settings`) закрыл её, но дальнейший аудит (2026-08-21) показал, что
+# граница была иллюзорной для инструментов Read/Write: Read внутри
+# Claude Code игнорирует `denyRead` целиком (управляется только системой
+# разрешений, которую `--dangerously-skip-permissions` отключает
+# полностью), а Write вообще не поддерживает ограничение по пути ни в
+# каком режиме — подтверждено трижды эмпирически и документацией
+# permissions.md. Единственный проверенный барьер, который агент не
+# может обойти изнутри, — внешняя, обеспечиваемая ядром ОС изоляция
+# контейнера: если директория не примонтирована, её физически нет в
+# файловой системе процесса, независимо от того, что говорят внутренние
+# настройки Claude Code. Подробный разбор:
+# docs/incidents/2026-08-19-python-ticket1-contamination/ (первый раунд)
+# и docs/incidents/2026-08-21-write-tool-sandbox-escape/ (второй раунд,
+# Docker-обвязка).
 #
-# sandbox.filesystem.denyRead/allowRead — часть полей sandbox читается
-# только из user/managed/CLI (--settings) настроек, из project-level
-# .claude/settings.json — нет, поэтому передаём файлом через --settings,
-# а не кладём в пилотный проект.
+# Внутренние sandbox.filesystem/permissions настройки Claude Code
+# сознательно не используются для этого вызова — внутри контейнера,
+# где смонтирован только /workspace, ограничивать больше нечего:
+# соседних языковых директорий и самого мета-репозитория в файловой
+# системе процесса просто не существует. `--safe-mode` оставлен как
+# дешёвая защита на случай, если в образ харнеса когда-нибудь попадёт
+# собственный CLAUDE.md/хуки — не потому, что сейчас есть что отключать.
 #
-# Файловая песочница не покрывает общий Docker-демон хоста: агенту
-# нужен доступ к docker-сокету для сборки/тестирования своего же
-# контейнера (см. network.allowAllUnixSockets ниже), а через него
-# `docker images`/`docker ps` показывают образы и контейнеры от
-# эталонной реализации и от прошлых пилотных прогонов — второй,
-# более мягкий канал утечки (агент не читает чужой код, но видит,
-# что чужие прогоны существуют, и это самого по себе достаточно,
-# чтобы повлиять на его решения — см. раздел «Docker daemon» в
-# разборе инцидента). Поэтому перед каждым запуском чистим все
-# ресурсы с префиксом `syncbox` — не только чужие: если это
-# `--resume` в рамках одного тикета, свои же образа тоже будут
+# Файловая изоляция контейнера не покрывает общий Docker-демон хоста:
+# агенту нужен доступ к docker-сокету для сборки/тестирования своего же
+# контейнера (Docker-out-of-Docker — /var/run/docker.sock пробрасывается
+# внутрь), а через него `docker images`/`docker ps` показывают образы и
+# контейнеры от эталонной реализации и от прошлых пилотных прогонов —
+# второй, более мягкий канал утечки (агент не читает чужой код, но
+# видит, что чужие прогоны существуют, и это само по себе достаточно,
+# чтобы повлиять на его решения). Поэтому перед каждым запуском чистим
+# все ресурсы с префиксом `syncbox` — не только чужие: если это
+# `--resume` в рамках одного тикета, свои же образы тоже будут
 # пересобраны, это принятая цена фикса, а не побочный баг.
 #
 # Использование:
 #   scripts/run-pilot-ticket.sh <pilot-dir> <prompt-file> <output-prefix>
+#
+# Предпосылка: scripts/pilot-harness.env с CLAUDE_CODE_OAUTH_TOKEN (см.
+# scripts/pilot-harness.env.example) и собранный образ
+# pilot-harness:latest (пересобирается автоматически, если отсутствует
+# или Dockerfile новее уже собранного).
 #
 # Пишет:
 #   <output-prefix>.json        — результат --output-format json
@@ -46,7 +67,6 @@ PROMPT_FILE="${2:?Использование: run-pilot-ticket.sh <pilot-dir> <p
 OUTPUT_PREFIX="${3:?Использование: run-pilot-ticket.sh <pilot-dir> <prompt-file> <output-prefix>}"
 
 PILOT_DIR="$(cd "$PILOT_DIR" && pwd)"
-PARENT_DIR="$(dirname "$PILOT_DIR")"
 PROMPT_FILE="$(cd "$(dirname "$PROMPT_FILE")" && pwd)/$(basename "$PROMPT_FILE")"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -60,81 +80,47 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cp "$REPO_ROOT/docs/SYNCBOX-SPEC.md" "$PILOT_DIR/SYNCBOX-SPEC.md"
 cp "$REPO_ROOT/docs/syncbox-openapi.yaml" "$PILOT_DIR/syncbox-openapi.yaml"
 
-SETTINGS_FILE="$(mktemp -t syncbox-sandbox-settings)"
-trap 'rm -f "$SETTINGS_FILE"' EXIT
+ENV_FILE="$REPO_ROOT/scripts/pilot-harness.env"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "run-pilot-ticket.sh: нет $ENV_FILE — см. scripts/pilot-harness.env.example (нужен CLAUDE_CODE_OAUTH_TOKEN)" >&2
+  exit 1
+fi
 
-python3 - "$PARENT_DIR" "$PILOT_DIR" >"$SETTINGS_FILE" <<'PY'
-import json
-import os
-import sys
+# Без префикса "syncbox" намеренно: очистка Docker-демона ниже сносит
+# все образы с ссылкой "syncbox*" (код тикетов, эталонная реализация) —
+# образ харнеса, названный так же, попадал бы под собственную чистку и
+# исчезал сразу после сборки (воспроизведено эмпирически на этом хосте).
+HARNESS_IMAGE="pilot-harness:latest"
+HARNESS_DOCKERFILE="$REPO_ROOT/scripts/pilot-harness.Dockerfile"
+# Пересобрать, если образа ещё нет или Dockerfile правился после
+# последней сборки — та же логика, что ленивая пересборка у
+# run-server/run-client (docs/RUNBOOK.md), не пересобираем на каждый
+# вызов вслепую.
+NEED_BUILD=1
+if IMAGE_CREATED="$(docker image inspect -f '{{.Created}}' "$HARNESS_IMAGE" 2>/dev/null)"; then
+  IMAGE_EPOCH="$(date -j -f '%Y-%m-%dT%H:%M:%S' "${IMAGE_CREATED%%.*}" +%s 2>/dev/null || date -d "$IMAGE_CREATED" +%s)"
+  DOCKERFILE_EPOCH="$(stat -f %m "$HARNESS_DOCKERFILE" 2>/dev/null || stat -c %Y "$HARNESS_DOCKERFILE")"
+  [ "$IMAGE_EPOCH" -ge "$DOCKERFILE_EPOCH" ] && NEED_BUILD=0
+fi
+if [ "$NEED_BUILD" -eq 1 ]; then
+  # --provenance=false/--sbom=false: без них Docker Desktop (containerd
+  # image store, включён по умолчанию) экспортирует attestation-манифест
+  # вместе с образом и не может протегировать результат под обычным
+  # именем — `docker build` рапортует "naming to ... done", но `docker
+  # images`/`docker run` затем не находят образ вообще (воспроизведено
+  # эмпирически на этом хосте). Не специфика конкретно этого образа —
+  # общий эффект containerd-стора с buildx, для локальных однократных
+  # сборок provenance/SBOM не несут пользы.
+  docker build --provenance=false --sbom=false -t "$HARNESS_IMAGE" -f "$HARNESS_DOCKERFILE" "$REPO_ROOT/scripts" >&2
+fi
 
-parent, pilot = sys.argv[1], sys.argv[2]
-json.dump(
-    {
-        "sandbox": {
-            "enabled": True,
-            # молчаливый откат к несандбоксированному запуску (дефолт
-            # Claude Code при недоступности песочницы) для этого скрипта
-            # неприемлем — тогда фикс контаминации незаметно перестаёт
-            # действовать; лучше упасть явно.
-            "failIfUnavailable": True,
-            # без этого агент может сам, по собственному решению, снять
-            # песочницу на конкретную Bash-команду через параметр
-            # dangerouslyDisableSandbox инструмента Bash — под
-            # --dangerously-skip-permissions это не требует чьего-либо
-            # подтверждения. Найдено на живом прогоне (Go, тикет 1,
-            # 2026-08-20): агент 18 раз снимал песочницу ради `docker
-            # buildx`, пишущего в ~/.docker/buildx/activity вне
-            # allowRead — по счастью, ни разу не прочитал ничего за
-            # пределами своей директории, но сама возможность обхода
-            # ровно то, что denyRead/allowRead ниже должны исключать.
-            "allowUnsandboxedCommands": False,
-            "filesystem": {
-                "denyRead": [parent],
-                "allowRead": [pilot],
-                # docker buildx пишет служебное состояние (не креды —
-                # те в ~/.docker/config.json, сюда не входит) в
-                # ~/.docker/buildx/{activity,current,instances,...} —
-                # без этого сборка образа падает "operation not
-                # permitted" на каждом тикете, где нужен пересобранный
-                # образ, и агент вынужден либо отключать песочницу
-                # целиком (закрыто выше), либо пропускать Docker E2E.
-                "allowWrite": [os.path.expanduser("~/.docker/buildx")],
-            },
-            "network": {
-                # docker-сокет и локальные HTTP-вызовы (curl к серверу
-                # тикета на 127.0.0.1) не должны блокироваться.
-                "allowAllUnixSockets": True,
-                "allowLocalBinding": True,
-                # Предположение "исходящий трафик в интернет идёт из
-                # демона Docker, не из сендбоксируемого процесса" не
-                # подтвердилось: на живом прогоне (Go, тикет 2,
-                # 2026-08-20) клиентский процесс `docker build`
-                # (buildx) сам делает HTTPS-запрос за OAuth-токеном к
-                # auth.docker.io и падает с ошибкой проверки
-                # TLS-сертификата — сборка образа, ещё не закешированного
-                # локально, невозможна без явного allowedDomains.
-                # Подтверждено диагностическим прогоном: с этим списком
-                # `docker pull alpine:3.20` (не закешированный) успешен.
-                # Не решает вопрос для будущих языков в общем виде —
-                # свои реестры пакетов (PyPI, RubyGems, npm, opam,
-                # Maven) при необходимости добавлять сюда по факту
-                # обнаружения тем же способом, не заранее списком.
-                "allowedDomains": [
-                    "auth.docker.io",
-                    "registry-1.docker.io",
-                    "production.cloudflare.docker.com",
-                    "*.docker.io",
-                    "*.cloudflare.docker.com",
-                ],
-            },
-        }
-    },
-    sys.stdout,
-    ensure_ascii=False,
-    indent=2,
-)
-PY
+# Путь к docker-сокету через `docker context inspect`, не хардкод
+# /var/run/docker.sock — на Docker Desktop/macOS реальный сокет лежит
+# в ~/.docker/run/docker.sock, /var/run/docker.sock там просто симлинк
+# на хосте (внутри контейнера его нет). На Linux-хосте (в т.ч. CI)
+# тот же вызов вернёт unix:///var/run/docker.sock — воспроизводимо без
+# правки скрипта под ОС.
+DOCKER_SOCK="$(docker context inspect -f '{{.Endpoints.docker.Host}}' | sed 's#^unix://##')"
 
 # Чистка общего Docker-демона хоста от всего, что несёт префикс
 # "syncbox" (образы, контейнеры, сети) — до эталонной реализации и
@@ -160,7 +146,6 @@ if [ -n "$leftover_containers$leftover_images$leftover_networks" ]; then
   exit 1
 fi
 
-cd "$PILOT_DIR"
 # --permission-mode dontAsk молча (и, по наблюдению, непредсказуемо)
 # отклоняет Edit/Write без TTY — не покрытые allow-правилом вызовы
 # инструментов при dontAsk в headless-режиме отклоняются по умолчанию,
@@ -168,14 +153,29 @@ cd "$PILOT_DIR"
 # кодом 0, не внеся ни одной правки — агент прямым текстом сообщил,
 # что Edit/Write отклонены системой разрешений. --dangerously-skip-permissions
 # снимает проверки разрешений целиком — решение осознанно принято поверх
-# уже существующей границы безопасности (--safe-mode + файловая
-# песочница sandbox.filesystem, см. выше), не вместо неё.
-claude -p \
-  --model claude-sonnet-5 \
-  --safe-mode \
-  --settings "$SETTINGS_FILE" \
-  --dangerously-skip-permissions \
-  --output-format json \
+# уже существующей границы безопасности, теперь обеспечиваемой
+# контейнером (см. заголовок файла), не вместо неё: даже с полностью
+# снятыми внутренними проверками агент физически не видит ничего, кроме
+# /workspace и docker-сокета.
+#
+# -v "$PILOT_DIR:/workspace:rw" — единственная примонтированная
+# директория с кодом; -v "$DOCKER_SOCK:/var/run/docker.sock" —
+# Docker-out-of-Docker для сборки/тестирования кода тикета в соседнем
+# контейнере (см. «Docker-изоляция» в docs/SYNCBOX-SPEC.md); --env-file
+# передаёт CLAUDE_CODE_OAUTH_TOKEN, не ANTHROPIC_API_KEY (см. CLAUDE.md,
+# раздел «Метод» — проект намеренно на OAuth); --rm — контейнер харнеса
+# не должен пережить вызов, в отличие от контейнера кода тикета внутри
+# него, который отдельно чистится блоком выше на СЛЕДУЮЩЕМ вызове.
+docker run --rm -i \
+  -v "$PILOT_DIR:/workspace:rw" \
+  -v "$DOCKER_SOCK:/var/run/docker.sock" \
+  --env-file "$ENV_FILE" \
+  "$HARNESS_IMAGE" \
+  claude -p \
+    --model claude-sonnet-5 \
+    --safe-mode \
+    --dangerously-skip-permissions \
+    --output-format json \
   <"$PROMPT_FILE" \
   >"${OUTPUT_PREFIX}.json" \
   2>"${OUTPUT_PREFIX}.stderr.log"
@@ -201,11 +201,12 @@ cp "${OUTPUT_PREFIX}.json" "$ARCHIVE_DIR/result.json"
 # результат: без него нечего проверять code quality в CI, и нечего
 # независимо прочитать peer review. Свои же служебные файлы (промпты
 # прошлых тикетов, .git, если он вдруг появится) исключены — это не
-# код агента. denyRead на родителя пилотной директории (см. sandbox
-# выше) покрывает и docs/pilot-runs/ этого мета-репозитория тем же
-# образом, что и acceptance/reference-impl — SYNCBOX-SPEC.md никогда
-# не должен называть или описывать этот архив по пути, иначе получим
-# повтор исходного инцидента контаминации с новым именем директории.
+# код агента. docs/pilot-runs/ этого мета-репозитория (как и весь
+# остальной хост) внутри контейнера агента физически не примонтирован —
+# агенту нечем прочитать архив соседних попыток и языков, даже если бы
+# SYNCBOX-SPEC.md вдруг снова стал называть его по пути. SYNCBOX-SPEC.md
+# тем не менее по-прежнему не должен называть или описывать этот архив —
+# защита в глубину, а не полагание на единственный барьер.
 rsync -a --exclude='.ticket-*' --exclude='.git' "$PILOT_DIR/" "$ARCHIVE_DIR/code/"
 
 # Code quality — автоматически на каждый прогон (то, что раньше
