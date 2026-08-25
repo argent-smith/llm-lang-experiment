@@ -1,0 +1,11 @@
+{
+  "name": "syncbox-code-quality-javascript",
+  "private": true,
+  "type": "module",
+  "description": "Локальный sandbox для внешней code quality-проверки JavaScript-пилота (scripts/run-code-quality.sh) — не package.json самого пилотного проекта.",
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.8.1",
+    "eslint-plugin-sonarjs": "4.2.0"
+  }
+}

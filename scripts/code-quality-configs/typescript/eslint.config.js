@@ -1,6 +1,10 @@
-// Явный конфиг для внешней code quality-проверки JS/TS-пилота
+// Явный конфиг для внешней code quality-проверки TypeScript-пилота
 // (scripts/run-code-quality.sh) — не конфиг самого пилотного проекта,
-// пилотный агент этот файл не видит.
+// пилотный агент этот файл не видит. Изначально общий для JS/TS,
+// разделён на javascript/ и typescript/ при разделении языка доклада
+// на два отдельных пилота (JavaScript и TypeScript — см. CLAUDE.md,
+// «Языки доклада») — этот файл сохраняет typescript-eslint, соседний
+// scripts/code-quality-configs/javascript/eslint.config.js — нет.
 //
 // @eslint/js recommended + typescript-eslint recommended —
 // конвенциональная стартовая точка 2026 года (flat config, ESLint 9+):

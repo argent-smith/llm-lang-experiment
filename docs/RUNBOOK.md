@@ -31,10 +31,14 @@
 Ruby ≥ 2.7, на этом хосте использован rbenv global 4.0.6, последняя
 стабильная на момент настройки — «все языки последней актуальной
 версии», не только пилотные, но и внешний тулинг), `node`/`npm` (для
-`eslint`+`typescript-eslint`+`eslint-plugin-sonarjs`). `python3` уже
-есть в предпосылках выше. `make code-quality-setup` ставит все три
-sandbox'а разом (venv/Bundler/npm — конвенциональный для языка стиль,
-закреплённые версии из `scripts/code-quality-configs/<язык>/`).
+`eslint`+`eslint-plugin-sonarjs` в JavaScript-sandbox'е и
+`eslint`+`typescript-eslint`+`eslint-plugin-sonarjs` в
+TypeScript-sandbox'е — два отдельных набора зависимостей, JavaScript не
+тянет TypeScript-тулинг, см. `scripts/code-quality-configs/javascript/`
+и `scripts/code-quality-configs/typescript/`). `python3` уже есть в
+предпосылках выше. `make code-quality-setup` ставит все четыре
+sandbox'а разом (venv/Bundler/npm×2 — конвенциональный для языка
+стиль, закреплённые версии из `scripts/code-quality-configs/<язык>/`).
 
 Code security (bandit/gosec) пробовали и убрали 2026-08-20 — см.
 `docs/PILOT-COMPARISON-python-go.md`, раздел «Code security
@@ -96,7 +100,7 @@ OpenAPI-схемы) + `make test` (smoke + контрактный тест пр�
 | `make fmt-tables`         | То же самое, что автоматически делает Claude Code hook после `Edit`/`Write` — полезно, если правите markdown не через Claude Code                                                                                                                                                                                                                                            |
 | `make clean`              | Снести `.venv`, кеши `schemathesis`/`hypothesis`, зависшие docker compose проекты `syncbox-reference-impl-*`                                                                                                                                                                                                                                                                 |
 | `make code-quality`       | `make code-quality CQ_LANG=python IMPL=pilot-runs-live/python` — findings в `/tmp/syncbox-code-quality-python-quality.json` (или `CQ_OUT=<префикс>`); не входит в `make check`, результат не гейтит цикл ревью тикета (CLAUDE.md, раздел «Метод»)                                                                                                                            |
-| `make code-quality-setup` | Разово перед первым `make code-quality`/`make pilot-ticket` — ставит venv (Python)/Bundler (Ruby)/npm (JS-TS) sandbox'ы в `scripts/code-quality-configs/`, закреплённые версии                                                                                                                                                                                               |
+| `make code-quality-setup` | Разово перед первым `make code-quality`/`make pilot-ticket` — ставит venv (Python)/Bundler (Ruby)/npm (JavaScript, TypeScript — два отдельных sandbox'а) в `scripts/code-quality-configs/`, закреплённые версии                                                                                                                                                              |
 | `make pilot-ticket`       | Воспроизвести один тикет пилота целиком (не только код-стенд): `make pilot-ticket PILOT_DIR=pilot-runs-live/python PROMPT=pilot-runs-live/python/.ticket-1-prompt.txt OUT=/tmp/ticket-1-result` — реализация + автоматическая архивация в `docs/pilot-runs/` + code quality; сами промпты тикетов — в `docs/pilot-runs/<язык>/ticket-<N>/*/prompt.txt` уже прошедших попыток |
 
 ## Типичные проблемы

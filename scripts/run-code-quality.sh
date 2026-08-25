@@ -16,13 +16,21 @@
 # закреплённой версией инструмента в собственном локальном sandbox'е
 # scripts/code-quality-configs/<язык>/ — в конвенциональном для языка
 # стиле (venv для Python, GOPATH/bin для Go, Bundler для Ruby, npm для
-# JS/TS), не глобальный инструмент и не голый дефолт. Пилотный агент
-# эти файлы не видит — не конфиг самого пилотного проекта.
+# JavaScript/TypeScript), не глобальный инструмент и не голый дефолт.
+# Пилотный агент эти файлы не видит — не конфиг самого пилотного
+# проекта.
 #
-#   python -> ruff (venv)                    + code-quality-configs/python/ruff.toml
-#   go     -> golangci-lint (GOPATH)         + code-quality-configs/go/golangci.yml
-#   ruby   -> rubocop + reek (bundle exec)   + code-quality-configs/ruby/.rubocop.yml
-#   js/ts  -> eslint + eslint-plugin-sonarjs (npm) + code-quality-configs/js/eslint.config.js
+#   python     -> ruff (venv)                  + code-quality-configs/python/ruff.toml
+#   go         -> golangci-lint (GOPATH)        + code-quality-configs/go/golangci.yml
+#   ruby       -> rubocop + reek (bundle exec)  + code-quality-configs/ruby/.rubocop.yml
+#   javascript -> eslint + sonarjs (npm)        + code-quality-configs/javascript/eslint.config.js
+#   typescript -> eslint + typescript-eslint + sonarjs (npm) + code-quality-configs/typescript/eslint.config.js
+#
+# JavaScript и TypeScript — конвенционально разные наборы тулинга
+# (typescript-eslint не имеет смысла в проекте без TypeScript), поэтому
+# два отдельных конфига, не общий "js" — см. CLAUDE.md, «Языки
+# доклада»: с разделения JS/TS на два самостоятельных пилота это два
+# разных языка эксперимента, не один слот на двоих.
 #
 # Наборы правил в конфигах — конвенциональные стартовые точки для
 # новых проектов на каждом языке (подтверждено независимо для каждого,
@@ -42,7 +50,7 @@
 # дойдут до пилота.
 #
 # Использование:
-#   scripts/run-code-quality.sh <python|go|ruby|js> <impl-dir> <output-prefix>
+#   scripts/run-code-quality.sh <python|go|ruby|javascript|typescript> <impl-dir> <output-prefix>
 #
 # Пишет:
 #   <output-prefix>-quality.json
@@ -51,18 +59,14 @@
 
 set -euo pipefail
 
-LANG_NAME="${1:?Использование: run-code-quality.sh <python|go|ruby|js> <impl-dir> <output-prefix>}"
-IMPL_DIR="${2:?Использование: run-code-quality.sh <python|go|ruby|js> <impl-dir> <output-prefix>}"
-OUTPUT_PREFIX="${3:?Использование: run-code-quality.sh <python|go|ruby|js> <impl-dir> <output-prefix>}"
+LANG_NAME="${1:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript> <impl-dir> <output-prefix>}"
+IMPL_DIR="${2:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript> <impl-dir> <output-prefix>}"
+OUTPUT_PREFIX="${3:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript> <impl-dir> <output-prefix>}"
 
 IMPL_DIR="$(cd "$IMPL_DIR" && pwd)"
 GOBIN="$(go env GOPATH 2>/dev/null)/bin"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_DIR="$REPO_ROOT/scripts/code-quality-configs"
-
-case "$LANG_NAME" in
-  javascript|typescript) LANG_NAME="js" ;;
-esac
 
 case "$LANG_NAME" in
   python)
@@ -101,21 +105,25 @@ json.dump({'rubocop': rubocop, 'reek': reek}, open('${OUTPUT_PREFIX}-quality.jso
 "
     rm -f /tmp/rubocop-out.json /tmp/reek-out.json
     ;;
-  js)
-    [ -d "$CONFIG_DIR/js/node_modules" ] || { echo "eslint не установлен в sandbox (cd $CONFIG_DIR/js && npm install)" >&2; exit 1; }
+  javascript|typescript)
+    # JavaScript и TypeScript — два отдельных sandbox'а с разным
+    # набором тулинга (typescript-eslint только у TypeScript), но
+    # одинаковый способ вызова — общая ветка на оба имени.
+    LANG_CONFIG_DIR="$CONFIG_DIR/$LANG_NAME"
+    [ -d "$LANG_CONFIG_DIR/node_modules" ] || { echo "eslint не установлен в sandbox (cd $LANG_CONFIG_DIR && npm install)" >&2; exit 1; }
     # ESLint по умолчанию отказывается линтить файлы вне каталога
     # своего конфига ("outside of base path") — запускаем из целевой
     # директории, конфиг передаём абсолютным путём, как для остальных
     # языков. exit 1 значит "есть находки", падаем только на 2+
     # (fatal error — битый конфиг, краш).
     set +e
-    (cd "$IMPL_DIR" && npx --prefix "$CONFIG_DIR/js" eslint --config "$CONFIG_DIR/js/eslint.config.js" --format json --no-warn-ignored .) >"${OUTPUT_PREFIX}-quality.json"
+    (cd "$IMPL_DIR" && npx --prefix "$LANG_CONFIG_DIR" eslint --config "$LANG_CONFIG_DIR/eslint.config.js" --format json --no-warn-ignored .) >"${OUTPUT_PREFIX}-quality.json"
     rc=$?
     set -e
     [ "$rc" -le 1 ] || { echo "eslint завершился с кодом $rc (не просто находки)" >&2; exit "$rc"; }
     ;;
   *)
-    echo "Язык '$LANG_NAME' пока не поддержан этим скриптом (python, go, ruby, js — Scala/OCaml см. комментарий в начале файла)" >&2
+    echo "Язык '$LANG_NAME' пока не поддержан этим скриптом (python, go, ruby, javascript, typescript — Scala/OCaml см. комментарий в начале файла)" >&2
     exit 1
     ;;
 esac
