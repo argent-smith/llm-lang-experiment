@@ -1,0 +1,230 @@
+[
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 39,
+      "row": 12
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_app.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 12
+    },
+    "message": "Magic value used in comparison, consider replacing `200` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 12,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 39,
+      "row": 21
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_app.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 21
+    },
+    "message": "Magic value used in comparison, consider replacing `405` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 21,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 39,
+      "row": 31
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_app.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 31
+    },
+    "message": "Magic value used in comparison, consider replacing `201` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 31,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 39,
+      "row": 55
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_app.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 55
+    },
+    "message": "Magic value used in comparison, consider replacing `201` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 55,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 39,
+      "row": 67
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_app.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 67
+    },
+    "message": "Magic value used in comparison, consider replacing `201` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 67,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 39,
+      "row": 78
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_app.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 78
+    },
+    "message": "Magic value used in comparison, consider replacing `200` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 78,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 39,
+      "row": 89
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_app.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 89
+    },
+    "message": "Magic value used in comparison, consider replacing `200` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 89,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 39,
+      "row": 99
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_app.py",
+    "fix": null,
+    "location": {
+      "column": 36,
+      "row": 99
+    },
+    "message": "Magic value used in comparison, consider replacing `404` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 99,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 29,
+      "row": 19
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_main.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 19
+    },
+    "message": "Magic value used in comparison, consider replacing `8080` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 19,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 29,
+      "row": 29
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_main.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 29
+    },
+    "message": "Magic value used in comparison, consider replacing `9090` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 29,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 29,
+      "row": 39
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_main.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 39
+    },
+    "message": "Magic value used in comparison, consider replacing `9191` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 39,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  },
+  {
+    "cell": null,
+    "code": "PLR2004",
+    "end_location": {
+      "column": 29,
+      "row": 49
+    },
+    "filename": "/Users/<user>/work/llm-lang-experiment/pilot-runs-live/python/server/tests/test_main.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 49
+    },
+    "message": "Magic value used in comparison, consider replacing `7070` with a constant variable",
+    "name": "magic-value-comparison",
+    "noqa_row": 49,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/magic-value-comparison"
+  }
+]

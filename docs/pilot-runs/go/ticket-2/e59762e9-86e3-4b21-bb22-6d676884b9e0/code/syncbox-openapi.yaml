@@ -1,0 +1,122 @@
+openapi: 3.0.3
+info:
+  title: Syncbox
+  version: "1.0.0"
+  description: >
+    Формальная схема HTTP-поверхности Syncbox — единственный источник
+    истины для контракта (эндпоинты, коды ответов, тела запросов и
+    ответов). Раздел «HTTP API» в SYNCBOX-SPEC.md — читаемое резюме
+    этой схемы, при расхождении приоритет у файла. CLI-контракт
+    (run-server/run-client, флаги, поведение sync/push/pull/status)
+    в OpenAPI не входит — стандарта для этого нет, он остаётся прозой
+    в SYNCBOX-SPEC.md.
+
+servers:
+  - url: http://127.0.0.1:8080
+
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      summary: Проверка живости сервера
+      responses:
+        "200":
+          description: Сервер жив
+
+  /blobs:
+    get:
+      operationId: listBlobs
+      summary: Список всех блобов с метаданными
+      responses:
+        "200":
+          description: Список блобов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BlobMeta"
+
+  /blobs/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+        description: >
+          POSIX-путь относительно корня хранилища (например
+          docs/readme.txt) — может содержать `/`. OpenAPI формально
+          трактует path-параметр как один сегмент; здесь это
+          намеренное упрощение схемы, реальный контракт (включая
+          обязательное отклонение `..`) — в SYNCBOX-SPEC.md.
+    get:
+      operationId: getBlob
+      summary: Скачать блоб
+      responses:
+        "200":
+          description: Содержимое блоба
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Блоб с таким key не найден
+    put:
+      operationId: putBlob
+      summary: Загрузить блоб (перезаписывает при совпадении key)
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Блоб сохранён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PutResponse"
+        "400":
+          description: Недопустимый key (в частности — directory traversal)
+    delete:
+      operationId: deleteBlob
+      summary: Удалить блоб
+      responses:
+        "204":
+          description: Блоб удалён
+        "404":
+          description: Блоб с таким key не найден
+
+components:
+  schemas:
+    BlobMeta:
+      type: object
+      required: [key, size, sha256, modified_at]
+      properties:
+        key:
+          type: string
+        size:
+          type: integer
+          minimum: 0
+        sha256:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        modified_at:
+          type: string
+          format: date-time
+    PutResponse:
+      type: object
+      required: [key, sha256, size]
+      properties:
+        key:
+          type: string
+        sha256:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        size:
+          type: integer
+          minimum: 0
