@@ -48,17 +48,17 @@
 #   scripts/run-pilot-ticket.sh <pilot-dir> <prompt-file> <output-prefix>
 #
 # Предпосылка: scripts/pilot-harness.env с CLAUDE_CODE_OAUTH_TOKEN (см.
-# scripts/pilot-harness.env.example) и собранный образ
-# pilot-harness:latest (пересобирается автоматически, если отсутствует
-# или Dockerfile новее уже собранного).
+# scripts/pilot-harness.env.example). Образ pilot-harness:latest
+# собирается на каждый вызов (кеш слоёв BuildKit делает это дёшево при
+# отсутствии изменений в Dockerfile).
 #
 # Пишет:
 #   <output-prefix>.json        — результат --output-format json
 #   <output-prefix>.stderr.log  — stderr прогона
 #   docs/pilot-runs/<язык>/ticket-<N>/<session_id>/ — архивная копия
-#     промпта, спецификации/схемы и результата (для peer review, см.
-#     docs/pilot-runs/README.md); <язык> и <N> определяются по именам
-#     <pilot-dir> и <prompt-file>.
+#     промпта, спецификации/схемы, результата, полного JSONL-транскрипта
+#     сессии и кода (для peer review, см. docs/pilot-runs/README.md);
+#     <язык> и <N> определяются по именам <pilot-dir> и <prompt-file>.
 
 set -euo pipefail
 
@@ -92,27 +92,25 @@ fi
 # исчезал сразу после сборки (воспроизведено эмпирически на этом хосте).
 HARNESS_IMAGE="pilot-harness:latest"
 HARNESS_DOCKERFILE="$REPO_ROOT/scripts/pilot-harness.Dockerfile"
-# Пересобрать, если образа ещё нет или Dockerfile правился после
-# последней сборки — та же логика, что ленивая пересборка у
-# run-server/run-client (docs/RUNBOOK.md), не пересобираем на каждый
-# вызов вслепую.
-NEED_BUILD=1
-if IMAGE_CREATED="$(docker image inspect -f '{{.Created}}' "$HARNESS_IMAGE" 2>/dev/null)"; then
-  IMAGE_EPOCH="$(date -j -f '%Y-%m-%dT%H:%M:%S' "${IMAGE_CREATED%%.*}" +%s 2>/dev/null || date -d "$IMAGE_CREATED" +%s)"
-  DOCKERFILE_EPOCH="$(stat -f %m "$HARNESS_DOCKERFILE" 2>/dev/null || stat -c %Y "$HARNESS_DOCKERFILE")"
-  [ "$IMAGE_EPOCH" -ge "$DOCKERFILE_EPOCH" ] && NEED_BUILD=0
-fi
-if [ "$NEED_BUILD" -eq 1 ]; then
-  # --provenance=false/--sbom=false: без них Docker Desktop (containerd
-  # image store, включён по умолчанию) экспортирует attestation-манифест
-  # вместе с образом и не может протегировать результат под обычным
-  # именем — `docker build` рапортует "naming to ... done", но `docker
-  # images`/`docker run` затем не находят образ вообще (воспроизведено
-  # эмпирически на этом хосте). Не специфика конкретно этого образа —
-  # общий эффект containerd-стора с buildx, для локальных однократных
-  # сборок provenance/SBOM не несут пользы.
-  docker build --provenance=false --sbom=false -t "$HARNESS_IMAGE" -f "$HARNESS_DOCKERFILE" "$REPO_ROOT/scripts" >&2
-fi
+# Собирается на каждый вызов, без ручной проверки "нужна ли пересборка"
+# — кеш слоёв BuildKit сам решает, что переиспользовать, и при полном
+# кеш-хите не тратит заметного времени. Ручная проверка по mtime
+# Dockerfile vs `docker image inspect .Created` была ненадёжной:
+# BuildKit при полном кеш-хите не меняет `Created` образа (переиспользует
+# тот же контент), так что после любой правки Dockerfile постфактум
+# `Created` навсегда остаётся "старше" — проверка считала бы пересборку
+# нужной на каждом вызове и всё равно не экономила ничего, только
+# усложняла код.
+#
+# --provenance=false/--sbom=false: без них Docker Desktop (containerd
+# image store, включён по умолчанию) экспортирует attestation-манифест
+# вместе с образом и не может протегировать результат под обычным
+# именем — `docker build` рапортует "naming to ... done", но `docker
+# images`/`docker run` затем не находят образ вообще (воспроизведено
+# эмпирически на этом хосте). Не специфика конкретно этого образа —
+# общий эффект containerd-стора с buildx, для локальных однократных
+# сборок provenance/SBOM не несут пользы.
+docker build --provenance=false --sbom=false -t "$HARNESS_IMAGE" -f "$HARNESS_DOCKERFILE" "$REPO_ROOT/scripts" >&2
 
 # Путь к docker-сокету через `docker context inspect`, не хардкод
 # /var/run/docker.sock — на Docker Desktop/macOS реальный сокет лежит
@@ -124,20 +122,31 @@ DOCKER_SOCK="$(docker context inspect -f '{{.Endpoints.docker.Host}}' | sed 's#^
 
 # Чистка общего Docker-демона хоста от всего, что несёт префикс
 # "syncbox" (образы, контейнеры, сети) — до эталонной реализации и
-# прошлых пилотных прогонов включительно. `|| true` на каждом шаге:
+# прошлых пилотных прогонов включительно. Плюс отдельно —
+# "^workspace-"/"^workspace_": рабочая директория внутри контейнера
+# харнеса всегда /workspace (см. WORKDIR в pilot-harness.Dockerfile),
+# поэтому `docker compose` без явного `name:` в файле проекта
+# детерминированно берёт "workspace" как имя проекта — контейнеры вида
+# `workspace-<сервис>-run-<hash>` не совпадают с фильтром "syncbox" и
+# переживают вызов, если сессия оборвалась до штатного `compose down`
+# (найдено эмпирически: сервер, поднятый `run-server` внутри тикета,
+# пережил обрыв по рейт-лимиту 429 и следующие два прогона, пока не
+# найден при ручной проверке). `^` — привязка к началу имени, чтобы не
+# зацепить случайный контейнер стороннего проекта разработчика с
+# "workspace" где-то в середине имени. `|| true` на каждом шаге:
 # пустой список — нормальный случай, не ошибка.
-docker ps -a --filter "name=syncbox" --format '{{.ID}}' | xargs -r docker rm -f >/dev/null 2>&1 || true
+docker ps -a --filter "name=syncbox" --filter "name=^workspace-" --format '{{.ID}}' | xargs -r docker rm -f >/dev/null 2>&1 || true
 docker images --filter "reference=syncbox*" --format '{{.ID}}' | xargs -r docker rmi -f >/dev/null 2>&1 || true
-docker network ls --filter "name=syncbox" --format '{{.ID}}' | xargs -r docker network rm >/dev/null 2>&1 || true
+docker network ls --filter "name=syncbox" --filter "name=^workspace_" --format '{{.ID}}' | xargs -r docker network rm >/dev/null 2>&1 || true
 
 # Проверка, что чистка реально сработала — тем же духом, что
 # failIfUnavailable для файловой песочницы: молчаливый недобитый
 # остаток (`|| true` выше глотает и настоящие ошибки docker, не
 # только "пустой список") оставлял бы более мягкий канал утечки не
 # закрытым, а просто незамеченным.
-leftover_containers="$(docker ps -a --filter "name=syncbox" --format '{{.Names}}')"
+leftover_containers="$(docker ps -a --filter "name=syncbox" --filter "name=^workspace-" --format '{{.Names}}')"
 leftover_images="$(docker images --filter "reference=syncbox*" --format '{{.Repository}}:{{.Tag}}')"
-leftover_networks="$(docker network ls --filter "name=syncbox" --format '{{.Name}}')"
+leftover_networks="$(docker network ls --filter "name=syncbox" --filter "name=^workspace_" --format '{{.Name}}')"
 if [ -n "$leftover_containers$leftover_images$leftover_networks" ]; then
   echo "run-pilot-ticket.sh: очистка Docker-демона от ресурсов 'syncbox' не удалась, остались:" >&2
   [ -n "$leftover_containers" ] && echo "  контейнеры: $leftover_containers" >&2
@@ -166,27 +175,71 @@ fi
 # раздел «Метод» — проект намеренно на OAuth); --rm — контейнер харнеса
 # не должен пережить вызов, в отличие от контейнера кода тикета внутри
 # него, который отдельно чистится блоком выше на СЛЕДУЮЩЕМ вызове.
+#
+# --effort xhigh — тот же принцип фиксации, что и точный ID модели
+# (CLAUDE.md, раздел «Не делать»): без явного флага харнесс полагался
+# на дефолт CLI, который сам сдрейфовал между версиями Claude Code —
+# 6 прогонов пилота от 2026-08-24 (до этого фикса) оказались под
+# effort=high, а не xhigh, как задокументировано для более ранних
+# прогонов на старом харнессе (проверено `grep` по `effort` в
+# архивированных `transcript.jsonl`, не предположено). Переигран после
+# фикса. Отдельно, известный и принятый (не устранимый без --bare,
+# который ломает OAuth) артефакт харнеса: каждый вызов несёт небольшое
+# сопутствующее использование claude-haiku-4-5 (~1500 токенов, ~$0.0015)
+# — видно в `modelUsage` результата, не в основном `usage`. Не искажает
+# сравнение между языками (одинаково на каждом вызове), но формально
+# не «только claude-sonnet-5» — см. docs/EXPERIMENT-LOG.md.
+#
+# -v "$CLAUDE_HOME_DIR:/home/node/.claude" — свежая, пустая на старте,
+# одноразовая для этого вызова директория (не хостовый ~/.claude
+# целиком: тот содержит транскрипты ДРУГИХ языков/тикетов, монтировать
+# его было бы тем же классом утечки, который устраняет вся эта
+# Docker-обвязка). Без неё Claude Code пишет JSONL-транскрипт сессии
+# внутрь контейнера, который затем удаляется вместе с `--rm` — сам факт
+# отсутствия чтения/записи вне /workspace для этого больше не нужен
+# (границу и так держит монтирование), но транскрипт нужен отдельно —
+# для наблюдения зацикливаний/повторяющихся ошибок (CLAUDE.md, раздел
+# «Лог») и чтобы peer review мог при желании перепроверить прогон
+# построчно, не только по итоговому result.json.
+CLAUDE_HOME_DIR="$(mktemp -d -t syncbox-claude-home)"
+trap 'rm -rf "$CLAUDE_HOME_DIR"' EXIT
+# CLAUDE_EXIT перехватывает код возврата явно ("|| CLAUDE_EXIT=$?"),
+# а не даёт `set -e` оборвать скрипт здесь — иначе архивация ниже
+# просто не выполняется на упавшем вызове. Найдено эмпирически
+# (2026-08-24): Go, тикет 2, `claude -p` вернул ненулевой код из-за
+# `429 session limit` — `${OUTPUT_PREFIX}.json` уже был записан
+# редиректом (валидный JSON с `is_error: true`), но скрипт прерывался
+# раньше строки архивации, и попытка терялась из архива целиком, не
+# только частично, как в более раннем инциденте с ручной архивацией
+# (см. ниже). Код возврата всё равно возвращается вызывающему в конце
+# файла (`exit "$CLAUDE_EXIT"`) — кейсы провала не маскируются, только
+# не блокируют архивацию.
+CLAUDE_EXIT=0
 docker run --rm -i \
   -v "$PILOT_DIR:/workspace:rw" \
   -v "$DOCKER_SOCK:/var/run/docker.sock" \
+  -v "$CLAUDE_HOME_DIR:/home/node/.claude" \
   --env-file "$ENV_FILE" \
   "$HARNESS_IMAGE" \
   claude -p \
     --model claude-sonnet-5 \
+    --effort xhigh \
     --safe-mode \
     --dangerously-skip-permissions \
     --output-format json \
   <"$PROMPT_FILE" \
   >"${OUTPUT_PREFIX}.json" \
-  2>"${OUTPUT_PREFIX}.stderr.log"
+  2>"${OUTPUT_PREFIX}.stderr.log" \
+  || CLAUDE_EXIT=$?
 
 # Архивация промпта/спецификации/результата в docs/pilot-runs — без
 # этого peer review не может проверить, что именно видел агент, не
-# полагаясь на наши слова. Автоматически на каждый вызов, не вручную:
-# два прогона тикета 2 на Go (2026-08-20) потеряли оригинальный
-# result.json именно потому, что архивация была ручным шагом и не
-# успела случиться до того, как следующая попытка перезаписала файл
-# по тому же пути — см. docs/pilot-runs/README.md.
+# полагаясь на наши слова. Автоматически на каждый вызов, не вручную,
+# и независимо от кода возврата claude -p (см. CLAUDE_EXIT выше) — не
+# только на успех: два прогона тикета 2 на Go (2026-08-20) потеряли
+# оригинальный result.json именно потому, что архивация была ручным
+# шагом и не успела случиться до того, как следующая попытка
+# перезаписала файл по тому же пути — см. docs/pilot-runs/README.md.
 LANG_TAG="$(basename "$PILOT_DIR" | sed 's/^syncbox-//')"
 TICKET_TAG="$(basename "$PROMPT_FILE" | sed -E 's/^\.?ticket-([0-9]+)-prompt\.txt$/\1/')"
 SESSION_ID="$(python3 -c "import json; print(json.load(open('${OUTPUT_PREFIX}.json')).get('session_id',''))" 2>/dev/null || echo "unknown-session")"
@@ -196,6 +249,21 @@ cp "$PROMPT_FILE" "$ARCHIVE_DIR/prompt.txt"
 cp "$PILOT_DIR/SYNCBOX-SPEC.md" "$ARCHIVE_DIR/SYNCBOX-SPEC.md"
 cp "$PILOT_DIR/syncbox-openapi.yaml" "$ARCHIVE_DIR/syncbox-openapi.yaml"
 cp "${OUTPUT_PREFIX}.json" "$ARCHIVE_DIR/result.json"
+
+# Полный JSONL-транскрипт сессии — из одноразового $CLAUDE_HOME_DIR
+# (см. docker run выше), не из хостового ~/.claude: там его нет и не
+# будет для контейнеризованных вызовов. Копируем до срабатывания trap,
+# который снесёт $CLAUDE_HOME_DIR при выходе. Один файл ожидается
+# (cwd внутри контейнера всегда /workspace, кодируется в одно и то же
+# имя поддиректории projects/) — если файлов несколько или их нет,
+# берём что есть/пропускаем без падения всего скрипта, транскрипт не
+# входит в критерии сошлось/сдалось.
+TRANSCRIPT="$(find "$CLAUDE_HOME_DIR/projects" -name '*.jsonl' 2>/dev/null | head -1)"
+if [ -n "$TRANSCRIPT" ]; then
+  cp "$TRANSCRIPT" "$ARCHIVE_DIR/transcript.jsonl"
+else
+  echo "run-pilot-ticket.sh: транскрипт сессии не найден в $CLAUDE_HOME_DIR/projects — архив без transcript.jsonl" >&2
+fi
 
 # Код, который написал агент, — тоже архивируется, не только промпт и
 # результат: без него нечего проверять code quality в CI, и нечего
@@ -220,3 +288,8 @@ else
 fi
 
 echo "Архив попытки: $ARCHIVE_DIR" >&2
+
+# Код возврата claude -p (см. CLAUDE_EXIT выше), не 0 — архивация
+# упавшего вызова не должна маскировать сам факт провала от вызывающей
+# стороны (Makefile, дальнейшие шаги пилота).
+exit "$CLAUDE_EXIT"

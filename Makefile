@@ -20,7 +20,9 @@ MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	docs/pilot-runs/README.md \
 	docs/pilot-runs/python/ticket-1/attempt-1-9baff2a0-contaminated/NOTE.md \
 	docs/pilot-runs/go/ticket-2/attempt-1-f50e806a-network-blocked/NOTE.md \
-	docs/pilot-runs/go/ticket-2/attempt-2-3eba70a1-buildx-write-blocked/NOTE.md
+	docs/pilot-runs/go/ticket-2/attempt-2-3eba70a1-buildx-write-blocked/NOTE.md \
+	docs/pilot-runs/python/ticket-1/a87d7a43-534e-4a14-9517-1232815c3e02/NOTE.md \
+	docs/pilot-runs/go/ticket-2/47ced9a7-82cf-4b63-97dc-ef6f7e0dcd38/NOTE.md
 
 # Архивные копии SYNCBOX-SPEC.md внутри docs/pilot-runs/ — намеренно
 # НЕ в MD_FILES: это точные исторические снимки того, что видел агент
@@ -70,7 +72,7 @@ contract: venv ## Контрактный тест (Schemathesis) против IM
 test: smoke contract ## Оба acceptance-теста против IMPL
 
 .PHONY: code-quality
-code-quality: ## Code quality против IMPL: make code-quality CQ_LANG=python IMPL=/path/to/syncbox-python (не входит в make check — данные для анализа, не гейт цикла ревью; code security пробовали и убрали, см. docs/PILOT-COMPARISON-python-go.md)
+code-quality: ## Code quality против IMPL: make code-quality CQ_LANG=python IMPL=pilot-runs-live/python (не входит в make check — данные для анализа, не гейт цикла ревью; code security пробовали и убрали, см. docs/PILOT-COMPARISON-python-go.md)
 	scripts/run-code-quality.sh $(CQ_LANG) $(IMPL) $(or $(CQ_OUT),/tmp/syncbox-code-quality-$(CQ_LANG))
 
 .PHONY: code-quality-setup
@@ -80,7 +82,7 @@ code-quality-setup: ## Установить локальные sandbox'ы code q
 	cd scripts/code-quality-configs/js && npm install --silent
 
 .PHONY: pilot-ticket
-pilot-ticket: ## Прогнать один тикет пилота целиком (реализация + архивация docs/pilot-runs/ + code quality): make pilot-ticket PILOT_DIR=/Users/you/work/syncbox-python PROMPT=/path/to/.ticket-1-prompt.txt OUT=.ticket-1-result
+pilot-ticket: ## Прогнать один тикет пилота целиком (реализация + архивация docs/pilot-runs/ + code quality): make pilot-ticket PILOT_DIR=pilot-runs-live/python PROMPT=pilot-runs-live/python/.ticket-1-prompt.txt OUT=/tmp/ticket-1-result
 	scripts/run-pilot-ticket.sh $(PILOT_DIR) $(PROMPT) $(OUT)
 
 .PHONY: check

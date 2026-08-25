@@ -10,3 +10,4 @@ scripts/code-quality-configs/ruby/vendor/
 scripts/code-quality-configs/ruby/.bundle/
 scripts/code-quality-configs/js/node_modules/
 scripts/pilot-harness.env
+pilot-runs-live/
