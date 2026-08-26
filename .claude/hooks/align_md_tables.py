@@ -48,7 +48,7 @@ def align_tables(text):
 
             new_header = format_row(header_cells, widths)
             new_sep = "| " + " | ".join("-" * widths[c] for c in range(ncols)) + " |"
-            if new_header != header:
+            if new_header != header or new_sep != lines[i + 1]:
                 changed = True
             out.append(new_header)
             out.append(new_sep)

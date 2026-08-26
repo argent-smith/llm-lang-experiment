@@ -51,7 +51,7 @@ shellcheck: ## shellcheck по bash-скриптам acceptance/ и scripts/
 
 .PHONY: markdownlint
 markdownlint: ## markdownlint по документации
-	npx --yes markdownlint-cli $(MD_FILES)
+	npx --yes markdownlint-cli@0.49.1 $(MD_FILES)
 
 .PHONY: openapi-lint
 openapi-lint: venv ## Проверить синтаксис docs/syncbox-openapi.yaml
