@@ -17,6 +17,7 @@ MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	docs/incidents/2026-08-20-sandbox-escape-hatch/README.md \
 	docs/incidents/2026-08-20-docker-build-sandbox-gaps/README.md \
 	docs/incidents/2026-08-21-write-tool-sandbox-escape/README.md \
+	docs/incidents/2026-08-26-docker-inspect-hostpath-leak/README.md \
 	docs/pilot-runs/README.md \
 	docs/pilot-runs/python/ticket-1/attempt-1-9baff2a0-contaminated/NOTE.md \
 	docs/pilot-runs/go/ticket-2/attempt-1-f50e806a-network-blocked/NOTE.md \
