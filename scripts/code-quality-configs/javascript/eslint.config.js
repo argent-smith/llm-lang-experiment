@@ -19,11 +19,25 @@
 // Security-ориентированный eslint-plugin-security сюда намеренно не
 // включён: code security исключён из метода отдельным решением (см.
 // docs/PILOT-COMPARISON-python-go.md, «Code security (исключено)»).
+//
+// languageOptions.globals: globals.node — без него flat config ESLint
+// 9+ не знает Node.js-окружения вообще (в отличие от старого .eslintrc
+// с `env: node`) и бьёт no-undef на `require`/`process`/`module` и т.п.
+// в любом обычном Node-коде — не находка о качестве пилотного кода, а
+// дыра в этом конфиге. Обнаружено эмпирически на первом же реальном
+// прогоне (JavaScript, тикет 1, 2026-08-26): 24 из 36 findings были
+// `no-undef` на стандартных Node-глобалах.
 
 import js from "@eslint/js";
 import sonarjs from "eslint-plugin-sonarjs";
+import globals from "globals";
 
 export default [
   js.configs.recommended,
   sonarjs.configs.recommended,
+  {
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ];
