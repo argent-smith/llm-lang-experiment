@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Runs the Syncbox server inside its Docker container via docker compose.
+# Usage: run-server --data-dir <path> [--port <n>]
+# Also honors SYNCBOX_DATA_DIR / SYNCBOX_PORT as fallbacks for the flags.
+set -euo pipefail
+
+DATA_DIR="${SYNCBOX_DATA_DIR:-}"
+PORT="${SYNCBOX_PORT:-8080}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --data-dir)
+      [[ $# -ge 2 ]] || { echo "run-server: --data-dir requires a value" >&2; exit 1; }
+      DATA_DIR="$2"
+      shift 2
+      ;;
+    --port)
+      [[ $# -ge 2 ]] || { echo "run-server: --port requires a value" >&2; exit 1; }
+      PORT="$2"
+      shift 2
+      ;;
+    *)
+      echo "run-server: unknown argument: $1" >&2
+      echo "usage: run-server --data-dir <path> [--port <n>]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$DATA_DIR" ]]; then
+  echo "run-server: --data-dir is required (or set SYNCBOX_DATA_DIR)" >&2
+  exit 1
+fi
+
+if ! [[ "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
+  echo "run-server: invalid --port value: '$PORT'" >&2
+  exit 1
+fi
+
+mkdir -p "$DATA_DIR"
+DATA_DIR="$(cd "$DATA_DIR" && pwd)"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+
+docker compose build server >&2
+
+# Blobs live in a named Docker volume keyed by the resolved --data-dir path,
+# mounted at that same absolute path inside the container, rather than a
+# host bind mount: this keeps storage keyed consistently by --data-dir
+# (repeated runs with the same path reuse the same volume) without depending
+# on which host paths the Docker daemon happens to be configured to share.
+VOLUME_NAME="syncbox-data-$(printf '%s' "$DATA_DIR" | tr -c 'a-zA-Z0-9_.-' '-')"
+
+exec docker compose run --rm -T \
+  --name "syncbox-server-${PORT}" \
+  -p "${PORT}:${PORT}" \
+  -v "${VOLUME_NAME}:${DATA_DIR}" \
+  server \
+  --data-dir "${DATA_DIR}" --port "${PORT}"

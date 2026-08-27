@@ -12,3 +12,7 @@ scripts/code-quality-configs/javascript/node_modules/
 scripts/code-quality-configs/typescript/node_modules/
 scripts/pilot-harness.env
 pilot-runs-live/
+.bsp/
+.metals/
+.bloop/
+.scala-build/

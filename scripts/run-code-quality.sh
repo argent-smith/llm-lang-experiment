@@ -25,6 +25,7 @@
 #   ruby       -> rubocop + reek (bundle exec)  + code-quality-configs/ruby/.rubocop.yml
 #   javascript -> eslint + sonarjs (npm)        + code-quality-configs/javascript/eslint.config.js
 #   typescript -> eslint + typescript-eslint + sonarjs (npm) + code-quality-configs/typescript/eslint.config.js
+#   scala      -> scalafix (sbt --addPluginSbtFile, host-local sbt) + code-quality-configs/scala/.scalafix.conf
 #
 # JavaScript и TypeScript — конвенционально разные наборы тулинга
 # (typescript-eslint не имеет смысла в проекте без TypeScript), поэтому
@@ -37,20 +38,24 @@
 # не выбрано произвольно — обоснование и источники см. в самих файлах
 # конфигов). Архитектурные/структурные находки (сложность, длина,
 # code smell — LongParameterList, FeatureEnvy и т. п.) сознательно
-# включены везде, не только в Ruby: ruff — категории C90/PLR,
-# golangci-lint — gocyclo/funlen/dupl, reek — отдельным инструментом
-# (не покрывается rubocop), eslint — eslint-plugin-sonarjs.
+# включены везде, где у инструмента есть для этого правила, не только
+# в Ruby: ruff — категории C90/PLR, golangci-lint — gocyclo/funlen/dupl,
+# reek — отдельным инструментом (не покрывается rubocop), eslint —
+# eslint-plugin-sonarjs. Scalafix — исключение: у встроенных правил
+# такого класса нет вообще, не пробел этого скрипта (см. ветку scala
+# ниже и scripts/code-quality-configs/scala/.scalafix.conf).
 #
-# Scala (Scalafix) и OCaml — намеренно не реализованы: Scalafix
-# нуждается в project-specific semanticdb-настройке, которую нельзя
-# осмысленно подготовить заранее без реального пилотного проекта;
-# у OCaml на 2026 год нет общепринятого линтера вообще (ocamllint/
-# ocp-lint мертвы, замены не появилось — подтверждено поиском, не
-# предположено). Оба — добавлять/решать по факту, когда эти языки
-# дойдут до пилота.
+# Scala реализована 2026-08-27, по факту первого реального пилота
+# (Scala 3.3.8 + sbt + munit, единственный модуль server/) — до этого
+# осознанно не готовилась вслепую, см. CLAUDE.md, «Сначала пилот».
+#
+# OCaml — по-прежнему не реализован: на 2026 год нет общепринятого
+# линтера вообще (ocamllint/ocp-lint мертвы, замены не появилось —
+# подтверждено поиском, не предположено). Решать по факту, когда OCaml
+# дойдёт до пилота.
 #
 # Использование:
-#   scripts/run-code-quality.sh <python|go|ruby|javascript|typescript> <impl-dir> <output-prefix>
+#   scripts/run-code-quality.sh <python|go|ruby|javascript|typescript|scala> <impl-dir> <output-prefix>
 #
 # Пишет:
 #   <output-prefix>-quality.json
@@ -59,9 +64,9 @@
 
 set -euo pipefail
 
-LANG_NAME="${1:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript> <impl-dir> <output-prefix>}"
-IMPL_DIR="${2:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript> <impl-dir> <output-prefix>}"
-OUTPUT_PREFIX="${3:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript> <impl-dir> <output-prefix>}"
+LANG_NAME="${1:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala> <impl-dir> <output-prefix>}"
+IMPL_DIR="${2:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala> <impl-dir> <output-prefix>}"
+OUTPUT_PREFIX="${3:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala> <impl-dir> <output-prefix>}"
 
 IMPL_DIR="$(cd "$IMPL_DIR" && pwd)"
 GOBIN="$(go env GOPATH 2>/dev/null)/bin"
@@ -122,8 +127,64 @@ json.dump({'rubocop': rubocop, 'reek': reek}, open('${OUTPUT_PREFIX}-quality.jso
     set -e
     [ "$rc" -le 1 ] || { echo "eslint завершился с кодом $rc (не просто находки)" >&2; exit "$rc"; }
     ;;
+  scala)
+    # Scalafix — принципиально другая архитектура вызова, чем у
+    # остальных языков: семантические правила (RemoveUnused,
+    # OrganizeImports, NoAutoTupling) требуют SemanticDB, который
+    # генерируется ТОЛЬКО компиляцией самого пилотного проекта — нет
+    # способа проверить готовый .scala-файл извне, как ruff/rubocop/
+    # eslint проверяют файлы без участия сборки проекта. Поэтому:
+    #   - плагин sbt-scalafix подключается через
+    #     `sbt --addPluginSbtFile=<наш plugins.sbt>` — штатная,
+    #     документированная фича sbt (DefaultCommands, подтверждено
+    #     через DeepWiki по исходникам sbt/sbt) для инъекции плагина
+    #     на один вызов, без правки project/plugins.sbt пилота.
+    #     Альтернатива (глобальный ~/.sbt/1.0/plugins через --sbt-dir)
+    #     проверена и отклонена — на этой sbt-инсталляции --sbt-dir
+    #     не подхватывает плагины из редиректнутого пути (расхождение
+    #     с документацией флага, подтверждено эмпирически дважды), а
+    #     трогать реальный ~/.sbt пользователя ради sandbox'а нельзя.
+    #   - `ThisBuild/scalafixConfig` и `-Wunused:all` (обязателен для
+    #     RemoveUnused/OrganizeImports на Scala 3.3.4+, без него sbt
+    #     падает `scalafix.sbt.InvalidArgument` ещё до запуска правил)
+    #     задаются через `set` — тоже эфемерно, session-only, не
+    #     пишется в build.sbt пилота.
+    #   - `scalafixEnable` включает SemanticDB для текущей sbt-сессии
+    #     (документировано как временное, session-only, тоже не
+    #     трогает build.sbt).
+    # У Scalafix нет встроенного JSON-вывода (в отличие от
+    # ruff/rubocop/eslint/golangci-lint) — только текст, парсится
+    # parse-scalafix-output.py в два вида находок: построчные
+    # диагностики линтер-правил (DisableSyntax) и unified-diff на файл
+    # от rewrite-правил (OrganizeImports и т.д., без атрибуции по
+    # конкретному правилу внутри diff — несколько rewrite-правил
+    # мержатся в один diff на файл в режиме --check).
+    #
+    # Архитектурные/структурные находки (сложность, длина метода —
+    # то, что есть у ruff/golangci-lint/reek) сознательно не
+    # покрыты — у встроенных правил Scalafix такого класса нет; это
+    # открытый пробел метода, не недосмотр этого скрипта (CLAUDE.md,
+    # таблица code quality — колонка для Scala отмечена «—»).
+    LANG_CONFIG_DIR="$CONFIG_DIR/scala"
+    SBT_PROJECT_DIR="$(dirname "$(find "$IMPL_DIR" -maxdepth 3 -name build.sbt | head -1)")"
+    [ -n "$SBT_PROJECT_DIR" ] && [ -d "$SBT_PROJECT_DIR" ] || { echo "build.sbt не найден внутри $IMPL_DIR (глубина поиска 3)" >&2; exit 1; }
+    set +e
+    (cd "$SBT_PROJECT_DIR" && sbt --addPluginSbtFile="$LANG_CONFIG_DIR/plugins.sbt" \
+      "set ThisBuild/scalafixConfig := Some(file(\"$LANG_CONFIG_DIR/.scalafix.conf\"))" \
+      "set ThisBuild/scalacOptions += \"-Wunused:all\"" \
+      scalafixEnable \
+      "scalafixAll --check") >/tmp/scalafix-raw.txt 2>&1
+    rc=$?
+    set -e
+    python3 "$LANG_CONFIG_DIR/parse-scalafix-output.py" <"/tmp/scalafix-raw.txt" >"${OUTPUT_PREFIX}-quality.json"
+    rm -f /tmp/scalafix-raw.txt
+    if [ "$rc" -ne 0 ]; then
+      found=$(python3 -c "import json; d=json.load(open('${OUTPUT_PREFIX}-quality.json')); print(len(d['scalafix']['diagnostics'])+len(d['scalafix']['rewrite_diffs']))")
+      [ "$found" -gt 0 ] || { echo "scalafixAll завершился кодом $rc, но находок не распарсено — вероятно реальная ошибка, не просто находки (см. \"raw_stdout\" в ${OUTPUT_PREFIX}-quality.json)" >&2; exit "$rc"; }
+    fi
+    ;;
   *)
-    echo "Язык '$LANG_NAME' пока не поддержан этим скриптом (python, go, ruby, javascript, typescript — Scala/OCaml см. комментарий в начале файла)" >&2
+    echo "Язык '$LANG_NAME' пока не поддержан этим скриптом (python, go, ruby, javascript, typescript, scala — OCaml см. комментарий в начале файла)" >&2
     exit 1
     ;;
 esac
