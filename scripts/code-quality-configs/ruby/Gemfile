@@ -1,4 +1,0 @@
-source "https://rubygems.org"
-
-gem "rubocop", "1.89.0"
-gem "reek", "6.5.0"

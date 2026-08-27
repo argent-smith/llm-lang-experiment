@@ -109,54 +109,6 @@ api_error`, точное время сброса в самом ответе API.
 повторной попытки, реального цикла `--resume` не потребовалось ни
 разу за весь пилот всех четырёх языков.
 
-## Code quality
-
-Тулинг — часть автоматической архивации на каждый тикет
-(`scripts/run-code-quality.sh`), не ретроактивный снимок. Конфиги —
-явные, версионируемые (`scripts/code-quality-configs/`): `ruff`
-0.16.4, `eslint` 10.8.1 + `typescript-eslint` 8.67.0 (TS) +
-`eslint-plugin-sonarjs` 4.2.0, `rubocop` 1.89.0 + `reek` 6.5.0.
-
-| Язык       | Тикет | Находок | Разбивка                                                                        |
-| ---------- | ----- | ------- | ------------------------------------------------------------------------------- |
-| Python     | 1     | 5       | `ruff`: `PLR2004` ×4, `I001` ×1                                                 |
-| Python     | 2     | 11      | `ruff`: `PLR2004` ×10, `I001` ×1                                                |
-| Python     | 3     | 13      | `ruff`: `PLR2004` ×12, `I001` ×1                                                |
-| JavaScript | 1     | 12      | `sonarjs/publicly-writable-directories` ×11, `no-unused-vars` ×1                |
-| JavaScript | 2     | 12      | `sonarjs/publicly-writable-directories` ×11, `sonarjs/no-nested-conditional` ×1 |
-| JavaScript | 3     | 13      | `sonarjs/publicly-writable-directories` ×11, `sonarjs/no-nested-conditional` ×2 |
-| TypeScript | 1     | 6       | `sonarjs/publicly-writable-directories` ×6                                      |
-| TypeScript | 2     | 6       | `sonarjs/publicly-writable-directories` ×6                                      |
-| TypeScript | 3     | 8       | `sonarjs/publicly-writable-directories` ×6, `sonarjs/no-nested-conditional` ×2  |
-| Ruby       | 1     | 100     | `rubocop`: `Style/StringLiterals` ×80 + прочее ×13; `reek` ×7                   |
-| Ruby       | 2     | 190     | `rubocop`: `Style/StringLiterals` ×162 + прочее ×19; `reek` ×9                  |
-| Ruby       | 3     | 269     | `rubocop`: `Style/StringLiterals` ×234 + прочее ×23; `reek` ×12                 |
-
-Числа между языками — не показатель «какой язык качественнее», по
-той же причине, что и в сравнении Python/Go: разное покрытие правил
-разных инструментов, разный объём и стиль кода. Ruby на порядок выше
-остальных почти целиком из-за одного cop'а
-(`Style/StringLiterals` — двойные кавычки без интерполяции вместо
-одинарных, стилистическая, не структурная находка): 476 из 559
-находок Ruby (85%) — это один этот cop. Реальные архитектурные находки
-(`Metrics/AbcSize`, `CyclomaticComplexity`, `MethodLength`, `reek
-TooManyStatements`/`FeatureEnvy`) единичны на каждом тикете, тем же
-порядком величин, что у остальных языков. JavaScript выше TypeScript
-почти целиком за счёт `sonarjs/publicly-writable-directories` —
-находка на литералах `/tmp/...` в тестовых фикстурах (аргументы
-`--data-dir` для юнит-тестов, не реальный файловый ввод-вывод),
-устойчиво воспроизводится на каждом тикете обоих языков, не признак
-разной небезопасности JS против TS.
-
-По ходу пилота найден и исправлен реальный баг тулинга (не находка о
-пилотном коде): `scripts/code-quality-configs/{javascript,typescript}/eslint.config.js`
-не объявлял `languageOptions.globals` — flat-конфиг ESLint 9+ не знает
-Node.js-окружения без явного указания, из-за чего `require`/`process`/
-`module` в обычном Node-коде били `no-undef`. На сыром прогоне
-JavaScript, тикет 1, это давало 24 из 36 findings шумом; после фикса
-(до JS-тикета 2 и до первого прогона TypeScript) — 0 таких находок ни
-на одном из оставшихся 5 тикетов JS/TS.
-
 ## Поведенческие наблюдения
 
 - **Штатные тесты без явного требования в промпте.** Все четыре языка

@@ -22,29 +22,9 @@
 `ubuntu-latest` есть всё, кроме python-пакетов, которые ставит сама
 цель `venv`.
 
-Отдельно, для `make code-quality`/`make code-quality-setup` (не входит
-в `make check`/CI-workflow этого репозитория — прогоняется как часть
-`scripts/run-pilot-ticket.sh`, см. ниже): `go` (для `golangci-lint`,
-устанавливается в `$GOPATH/bin`, версия закреплена в
-`scripts/run-code-quality.sh`), `ruby`/`bundler` через
-[rbenv](https://github.com/rbenv/rbenv) (для `rubocop`+`reek` — нужна
-Ruby ≥ 2.7, на этом хосте использован rbenv global 4.0.6, последняя
-стабильная на момент настройки — «все языки последней актуальной
-версии», не только пилотные, но и внешний тулинг), `node`/`npm` (для
-`eslint`+`eslint-plugin-sonarjs` в JavaScript-sandbox'е и
-`eslint`+`typescript-eslint`+`eslint-plugin-sonarjs` в
-TypeScript-sandbox'е — два отдельных набора зависимостей, JavaScript не
-тянет TypeScript-тулинг, см. `scripts/code-quality-configs/javascript/`
-и `scripts/code-quality-configs/typescript/`). `python3` уже есть в
-предпосылках выше. `make code-quality-setup` ставит все четыре
-sandbox'а разом (venv/Bundler/npm×2 — конвенциональный для языка
-стиль, закреплённые версии из `scripts/code-quality-configs/<язык>/`).
-
 Code security (bandit/gosec) пробовали и убрали 2026-08-20 — см.
 `docs/PILOT-COMPARISON-python-go.md`, раздел «Code security
-(исключено)». Для Scala (Scalafix) и OCaml (нет общепринятого
-инструмента, проверено поиском) `scripts/run-code-quality.sh` пока не
-реализован — добавляется по факту, когда язык доходит до пилота.
+(исключено)».
 
 ### Пилотный харнес (Docker)
 
@@ -90,18 +70,16 @@ OpenAPI-схемы) + `make test` (smoke + контрактный тест пр�
 `make help` печатает список с однострочным описанием каждой. Ниже —
 подробности и примеры для тех, где однострочника мало.
 
-| Цель                      | Пример                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `make smoke`              | `make smoke PORT=18099` — против другого порта; `make smoke IMPL=path/to/impl` — против другой реализации, когда появится                                                                                                                                                                                                                                                    |
-| `make contract`           | `make contract` — первый запуск создаёт `.venv` (может занять минуту), дальше быстро                                                                                                                                                                                                                                                                                         |
-| `make run-server`         | `make run-server PORT=9000 DATA_DIR=/tmp/mydata` — поднять сервер вручную для ручных curl-проверок, Ctrl+C останавливает и убирает контейнер                                                                                                                                                                                                                                 |
-| `make run-client`         | `make run-client ARGS="push /tmp/somedir --server http://127.0.0.1:18080"`                                                                                                                                                                                                                                                                                                   |
-| `make build`              | Форсированно пересобрать образ эталонной реализации — обычно не нужно, `run-server`/`run-client` сами пересобирают лениво по кешу                                                                                                                                                                                                                                            |
-| `make fmt-tables`         | То же самое, что автоматически делает Claude Code hook после `Edit`/`Write` — полезно, если правите markdown не через Claude Code                                                                                                                                                                                                                                            |
-| `make clean`              | Снести `.venv`, кеши `schemathesis`/`hypothesis`, зависшие docker compose проекты `syncbox-reference-impl-*`                                                                                                                                                                                                                                                                 |
-| `make code-quality`       | `make code-quality CQ_LANG=python IMPL=pilot-runs-live/python` — findings в `/tmp/syncbox-code-quality-python-quality.json` (или `CQ_OUT=<префикс>`); не входит в `make check`, результат не гейтит цикл ревью тикета (CLAUDE.md, раздел «Метод»)                                                                                                                            |
-| `make code-quality-setup` | Разово перед первым `make code-quality`/`make pilot-ticket` — ставит venv (Python)/Bundler (Ruby)/npm (JavaScript, TypeScript — два отдельных sandbox'а) в `scripts/code-quality-configs/`, закреплённые версии                                                                                                                                                              |
-| `make pilot-ticket`       | Воспроизвести один тикет пилота целиком (не только код-стенд): `make pilot-ticket PILOT_DIR=pilot-runs-live/python PROMPT=pilot-runs-live/python/.ticket-1-prompt.txt OUT=/tmp/ticket-1-result` — реализация + автоматическая архивация в `docs/pilot-runs/` + code quality; сами промпты тикетов — в `docs/pilot-runs/<язык>/ticket-<N>/*/prompt.txt` уже прошедших попыток |
+| Цель                | Пример                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make smoke`        | `make smoke PORT=18099` — против другого порта; `make smoke IMPL=path/to/impl` — против другой реализации, когда появится                                                                                                                                                                                                                                     |
+| `make contract`     | `make contract` — первый запуск создаёт `.venv` (может занять минуту), дальше быстро                                                                                                                                                                                                                                                                          |
+| `make run-server`   | `make run-server PORT=9000 DATA_DIR=/tmp/mydata` — поднять сервер вручную для ручных curl-проверок, Ctrl+C останавливает и убирает контейнер                                                                                                                                                                                                                  |
+| `make run-client`   | `make run-client ARGS="push /tmp/somedir --server http://127.0.0.1:18080"`                                                                                                                                                                                                                                                                                    |
+| `make build`        | Форсированно пересобрать образ эталонной реализации — обычно не нужно, `run-server`/`run-client` сами пересобирают лениво по кешу                                                                                                                                                                                                                             |
+| `make fmt-tables`   | То же самое, что автоматически делает Claude Code hook после `Edit`/`Write` — полезно, если правите markdown не через Claude Code                                                                                                                                                                                                                             |
+| `make clean`        | Снести `.venv`, кеши `schemathesis`/`hypothesis`, зависшие docker compose проекты `syncbox-reference-impl-*`                                                                                                                                                                                                                                                  |
+| `make pilot-ticket` | Воспроизвести один тикет пилота целиком (не только код-стенд): `make pilot-ticket PILOT_DIR=pilot-runs-live/python PROMPT=pilot-runs-live/python/.ticket-1-prompt.txt OUT=/tmp/ticket-1-result` — реализация + автоматическая архивация в `docs/pilot-runs/`; сами промпты тикетов — в `docs/pilot-runs/<язык>/ticket-<N>/*/prompt.txt` уже прошедших попыток |
 
 ## Типичные проблемы
 

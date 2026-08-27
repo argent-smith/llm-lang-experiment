@@ -50,7 +50,7 @@ shellcheck: ## shellcheck по bash-скриптам acceptance/ и scripts/
 	shellcheck acceptance/smoke.sh acceptance/contract-test.sh \
 		acceptance/reference-impl/run-server acceptance/reference-impl/run-client \
 		acceptance/reference-impl/_docker.sh \
-		scripts/run-pilot-ticket.sh scripts/run-code-quality.sh
+		scripts/run-pilot-ticket.sh
 
 .PHONY: markdownlint
 markdownlint: ## markdownlint по документации
@@ -74,20 +74,8 @@ contract: venv ## Контрактный тест (Schemathesis) против IM
 .PHONY: test
 test: smoke contract ## Оба acceptance-теста против IMPL
 
-.PHONY: code-quality
-code-quality: ## Code quality против IMPL: make code-quality CQ_LANG=python IMPL=pilot-runs-live/python (не входит в make check — данные для анализа, не гейт цикла ревью; code security пробовали и убрали, см. docs/PILOT-COMPARISON-python-go.md)
-	scripts/run-code-quality.sh $(CQ_LANG) $(IMPL) $(or $(CQ_OUT),/tmp/syncbox-code-quality-$(CQ_LANG))
-
-.PHONY: code-quality-setup
-code-quality-setup: ## Установить локальные sandbox'ы code quality (venv/bundle/npm/opam — конвенциональный для языка стиль, закреплённые версии) для python/ruby/javascript/typescript/ocaml (Go/Scala — через host-local go install/sbt, отдельного sandbox'а не заводят)
-	cd scripts/code-quality-configs/python && python3 -m venv .venv && .venv/bin/pip install --quiet --upgrade pip && .venv/bin/pip install --quiet -r requirements.txt
-	cd scripts/code-quality-configs/ruby && bundle config set --local path 'vendor/bundle' && bundle install --quiet
-	cd scripts/code-quality-configs/javascript && npm install --silent
-	cd scripts/code-quality-configs/typescript && npm install --silent
-	cd scripts/code-quality-configs/ocaml && opam switch create . 5.3.0 -y && opam install -y dune dream lwt sha yojson
-
 .PHONY: pilot-ticket
-pilot-ticket: ## Прогнать один тикет пилота целиком (реализация + архивация docs/pilot-runs/ + code quality): make pilot-ticket PILOT_DIR=pilot-runs-live/python PROMPT=pilot-runs-live/python/.ticket-1-prompt.txt OUT=/tmp/ticket-1-result
+pilot-ticket: ## Прогнать один тикет пилота целиком (реализация + архивация docs/pilot-runs/): make pilot-ticket PILOT_DIR=pilot-runs-live/python PROMPT=pilot-runs-live/python/.ticket-1-prompt.txt OUT=/tmp/ticket-1-result
 	scripts/run-pilot-ticket.sh $(PILOT_DIR) $(PROMPT) $(OUT)
 
 .PHONY: check
