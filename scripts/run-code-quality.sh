@@ -167,7 +167,10 @@ json.dump({'rubocop': rubocop, 'reek': reek}, open('${OUTPUT_PREFIX}-quality.jso
     # таблица code quality — колонка для Scala отмечена «—»).
     LANG_CONFIG_DIR="$CONFIG_DIR/scala"
     SBT_PROJECT_DIR="$(dirname "$(find "$IMPL_DIR" -maxdepth 3 -name build.sbt | head -1)")"
-    [ -n "$SBT_PROJECT_DIR" ] && [ -d "$SBT_PROJECT_DIR" ] || { echo "build.sbt не найден внутри $IMPL_DIR (глубина поиска 3)" >&2; exit 1; }
+    if [ -z "$SBT_PROJECT_DIR" ] || [ ! -d "$SBT_PROJECT_DIR" ]; then
+      echo "build.sbt не найден внутри $IMPL_DIR (глубина поиска 3)" >&2
+      exit 1
+    fi
     set +e
     (cd "$SBT_PROJECT_DIR" && sbt --addPluginSbtFile="$LANG_CONFIG_DIR/plugins.sbt" \
       "set ThisBuild/scalafixConfig := Some(file(\"$LANG_CONFIG_DIR/.scalafix.conf\"))" \
