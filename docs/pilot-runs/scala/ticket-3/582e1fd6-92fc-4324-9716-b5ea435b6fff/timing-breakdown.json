@@ -1,0 +1,9 @@
+{
+  "session_id": "582e1fd6-92fc-4324-9716-b5ea435b6fff",
+  "duration_ms": 201437,
+  "duration_api_ms": 155036,
+  "tool_ms_total": 46401,
+  "infra_ms": 0,
+  "work_ms": 46401,
+  "note": "work_ms = tool_ms_total - infra_ms (остаток от официального duration_ms - duration_api_ms, не независимая сумма по транскрипту)"
+}

@@ -291,6 +291,21 @@ fi
 # полагание на единственный барьер.
 rsync -a --exclude='.ticket-*' --exclude='.git' "$PILOT_DIR/" "$ARCHIVE_DIR/code/"
 
+# Разбивка времени на модель/инфраструктуру/работу — не гейт, не
+# критерий "сошлось/сдалось", как и было с code quality: данные для
+# последующего анализа. Требует result.json (для duration_api_ms) и
+# transcript.jsonl (для построчной классификации Bash-команд) — если
+# транскрипт не сохранился (см. блок выше), скрипт молча пропускается.
+if [ -f "$ARCHIVE_DIR/transcript.jsonl" ]; then
+  if python3 "$REPO_ROOT/scripts/analyze-timing-breakdown.py" "$ARCHIVE_DIR" >&2; then
+    echo "Разбивка времени: $ARCHIVE_DIR/timing-breakdown.json" >&2
+  else
+    echo "run-pilot-ticket.sh: analyze-timing-breakdown.py упал — не критично, не гейт" >&2
+  fi
+else
+  echo "run-pilot-ticket.sh: разбивка времени пропущена — нет transcript.jsonl" >&2
+fi
+
 echo "Архив попытки: $ARCHIVE_DIR" >&2
 
 # Код возврата claude -p (см. CLAUDE_EXIT выше), не 0 — архивация
