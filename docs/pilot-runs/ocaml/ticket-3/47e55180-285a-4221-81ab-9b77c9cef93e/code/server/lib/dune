@@ -1,0 +1,3 @@
+(library
+ (name syncbox_lib)
+ (libraries dream lwt unix sha yojson))

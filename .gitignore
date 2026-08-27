@@ -10,9 +10,12 @@ scripts/code-quality-configs/ruby/vendor/
 scripts/code-quality-configs/ruby/.bundle/
 scripts/code-quality-configs/javascript/node_modules/
 scripts/code-quality-configs/typescript/node_modules/
+scripts/code-quality-configs/ocaml/_opam/
+scripts/code-quality-configs/ocaml/_build/
 scripts/pilot-harness.env
 pilot-runs-live/
 .bsp/
 .metals/
 .bloop/
 .scala-build/
+_build/

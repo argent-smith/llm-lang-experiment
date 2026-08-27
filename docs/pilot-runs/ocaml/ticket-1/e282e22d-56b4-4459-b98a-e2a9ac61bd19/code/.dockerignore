@@ -1,0 +1,4 @@
+.git
+server/_build
+*.install
+.merlin

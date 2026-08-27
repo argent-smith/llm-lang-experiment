@@ -1,0 +1,14 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syncbox-server
+    stop_grace_period: 3s
+    environment:
+      SYNCBOX_DATA_DIR: ${SYNCBOX_DATA_DIR:?SYNCBOX_DATA_DIR must be set (use run-server)}
+      SYNCBOX_PORT: ${SYNCBOX_PORT:-8080}
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    volumes:
+      - "${SYNCBOX_DATA_DIR:?SYNCBOX_DATA_DIR must be set (use run-server)}:${SYNCBOX_DATA_DIR}"

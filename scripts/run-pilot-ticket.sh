@@ -293,8 +293,10 @@ rsync -a --exclude='.ticket-*' --exclude='.git' "$PILOT_DIR/" "$ARCHIVE_DIR/code
 
 # Code quality — автоматически на каждый прогон (то, что раньше
 # называлось "CI" в CLAUDE.md только на словах): не гейтит цикл ревью,
-# только данные. Молча пропускается для языков, для которых
-# run-code-quality.sh ещё не реализован (Scala/OCaml) — не ошибка.
+# только данные. Все семь языков эксперимента реализованы в
+# run-code-quality.sh с 2026-08-27 (OCaml — последний, по факту этого
+# пилота); ветка ниже молча пропускает прогон, если для языка тулинг
+# всё же не реализован (страховка на случай нового языка) — не ошибка.
 if "$REPO_ROOT/scripts/run-code-quality.sh" "$LANG_TAG" "$PILOT_DIR" "$ARCHIVE_DIR/quality" 2>"$ARCHIVE_DIR/quality.stderr.log"; then
   echo "Code quality: $ARCHIVE_DIR/quality-quality.json" >&2
 else

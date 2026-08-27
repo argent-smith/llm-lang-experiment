@@ -26,6 +26,7 @@
 #   javascript -> eslint + sonarjs (npm)        + code-quality-configs/javascript/eslint.config.js
 #   typescript -> eslint + typescript-eslint + sonarjs (npm) + code-quality-configs/typescript/eslint.config.js
 #   scala      -> scalafix (sbt --addPluginSbtFile, host-local sbt) + code-quality-configs/scala/.scalafix.conf
+#   ocaml      -> ocamlc/ocamlopt warnings (dune build @check --workspace, host-local opam switch) + code-quality-configs/ocaml/dune-workspace-quality
 #
 # JavaScript и TypeScript — конвенционально разные наборы тулинга
 # (typescript-eslint не имеет смысла в проекте без TypeScript), поэтому
@@ -49,13 +50,21 @@
 # (Scala 3.3.8 + sbt + munit, единственный модуль server/) — до этого
 # осознанно не готовилась вслепую, см. CLAUDE.md, «Сначала пилот».
 #
-# OCaml — по-прежнему не реализован: на 2026 год нет общепринятого
-# линтера вообще (ocamllint/ocp-lint мертвы, замены не появилось —
-# подтверждено поиском, не предположено). Решать по факту, когда OCaml
-# дойдёт до пилота.
+# OCaml реализована 2026-08-27, тоже по факту первого пилота (3 тикета,
+# OCaml 5.2/5.3 + dune + Dream) — на 2026 год нет общепринятого
+# стороннего линтера (ocamllint/ocp-lint мертвы, замены не появилось —
+# подтверждено поиском, не предположено), поэтому источник находок —
+# сам компилятор через дополнительные -w флаги, не сторонний инструмент.
+# Дефолтный набор warnings dune (профиль dev, `-w @1..3@5..28@30..39@43
+# @46..47@49..57@61..62-40`, подтверждено через DeepWiki по исходникам
+# ocaml/dune) уже трактуется как ошибки и потому даёт РОВНО ноль находок
+# на любом тикете, который вообще собрался (иначе сборка бы упала) —
+# нужен набор строже дефолтного, см. обоснование выбора кодов warnings
+# (41/44/45/48/60/67/69, с явным разбором почему не 4/29/40/42/58/59/68/70)
+# в scripts/code-quality-configs/ocaml/dune-workspace-quality.
 #
 # Использование:
-#   scripts/run-code-quality.sh <python|go|ruby|javascript|typescript|scala> <impl-dir> <output-prefix>
+#   scripts/run-code-quality.sh <python|go|ruby|javascript|typescript|scala|ocaml> <impl-dir> <output-prefix>
 #
 # Пишет:
 #   <output-prefix>-quality.json
@@ -64,9 +73,9 @@
 
 set -euo pipefail
 
-LANG_NAME="${1:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala> <impl-dir> <output-prefix>}"
-IMPL_DIR="${2:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala> <impl-dir> <output-prefix>}"
-OUTPUT_PREFIX="${3:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala> <impl-dir> <output-prefix>}"
+LANG_NAME="${1:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala|ocaml> <impl-dir> <output-prefix>}"
+IMPL_DIR="${2:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala|ocaml> <impl-dir> <output-prefix>}"
+OUTPUT_PREFIX="${3:?Использование: run-code-quality.sh <python|go|ruby|javascript|typescript|scala|ocaml> <impl-dir> <output-prefix>}"
 
 IMPL_DIR="$(cd "$IMPL_DIR" && pwd)"
 GOBIN="$(go env GOPATH 2>/dev/null)/bin"
@@ -186,8 +195,56 @@ json.dump({'rubocop': rubocop, 'reek': reek}, open('${OUTPUT_PREFIX}-quality.jso
       [ "$found" -gt 0 ] || { echo "scalafixAll завершился кодом $rc, но находок не распарсено — вероятно реальная ошибка, не просто находки (см. \"raw_stdout\" в ${OUTPUT_PREFIX}-quality.json)" >&2; exit "$rc"; }
     fi
     ;;
+  ocaml)
+    # dune, в отличие от sbt, ничего не умеет резолвить/скачивать
+    # автоматически заранее не установленное — зависимости пилота
+    # (dream/lwt/sha/yojson, по факту первого пилота) ставятся один раз
+    # в собственный локальный opam-свитч (scripts/code-quality-configs/
+    # ocaml/_opam, см. `opam switch create .` в README/Makefile), не
+    # хостовый переключатель по умолчанию. Если будущий тикет введёт
+    # НОВУЮ библиотеку, не входящую в этот свитч, `dune build` здесь
+    # упадёт "Library not found" — известное, принятое ограничение
+    # (тот же класс, что "quality не гейт, просто может не прогнаться"
+    # уже документирован в scripts/run-pilot-ticket.sh), не открытие.
+    #
+    # --workspace указывает на ВНЕШНИЙ dune-workspace-quality (не
+    # dune-workspace самого пилотного проекта, которого у него и нет) —
+    # добавляет warnings 41/44/45/48/60/67/69 поверх дефолтного набора
+    # dune (обоснование выбора — в самом файле конфига). Только `-w`,
+    # без `-warn-error`: находки не должны валить сборку, тот же принцип
+    # "не гейт", что --exit-zero у ruff.
+    #
+    # `dune build @check`, не дефолтный `@@default`: `@check` собирает
+    # только .cmi (типан provider, не полный байт-код+нативный код) —
+    # эмпирически подтверждено, что дефолтная сборка библиотеки дублирует
+    # каждое предупреждение (bytecode-таргет и native-таргет компилируют
+    # независимо), `@check` даёт ровно одно вхождение на находку.
+    #
+    # У ocamlc/ocamlopt, как и у Scalafix, нет JSON-вывода — только
+    # текст, парсится parse-ocaml-warnings.py (формат: `File "...", line
+    # N, characters A-B:` + строка исходника + подчёркивание + `Warning
+    # <код> [<имя>]: <сообщение>`).
+    LANG_CONFIG_DIR="$CONFIG_DIR/ocaml"
+    [ -d "$LANG_CONFIG_DIR/_opam" ] || { echo "opam-свитч не установлен в sandbox (cd $LANG_CONFIG_DIR && opam switch create . 5.3.0 -y && opam install -y dune dream lwt sha yojson)" >&2; exit 1; }
+    SERVER_DIR="$(dirname "$(find "$IMPL_DIR" -maxdepth 3 -name dune-project | head -1)")"
+    if [ -z "$SERVER_DIR" ] || [ ! -d "$SERVER_DIR" ]; then
+      echo "dune-project не найден внутри $IMPL_DIR (глубина поиска 3)" >&2
+      exit 1
+    fi
+    set +e
+    (opam exec --switch "$LANG_CONFIG_DIR" -- dune build @check --root "$SERVER_DIR" --workspace "$LANG_CONFIG_DIR/dune-workspace-quality") >/tmp/ocaml-quality-raw.txt 2>&1
+    rc=$?
+    set -e
+    rm -rf "$SERVER_DIR/_build"
+    python3 "$LANG_CONFIG_DIR/parse-ocaml-warnings.py" <"/tmp/ocaml-quality-raw.txt" >"${OUTPUT_PREFIX}-quality.json"
+    rm -f /tmp/ocaml-quality-raw.txt
+    if [ "$rc" -ne 0 ]; then
+      found=$(python3 -c "import json; d=json.load(open('${OUTPUT_PREFIX}-quality.json')); print(len(d['ocaml_compiler_warnings']['warnings']))")
+      [ "$found" -gt 0 ] || { echo "dune build @check завершился кодом $rc, но находок не распарсено — вероятно реальная ошибка (недостающая зависимость и т.п.), не просто находки (см. \"raw_stdout\" в ${OUTPUT_PREFIX}-quality.json)" >&2; exit "$rc"; }
+    fi
+    ;;
   *)
-    echo "Язык '$LANG_NAME' пока не поддержан этим скриптом (python, go, ruby, javascript, typescript, scala — OCaml см. комментарий в начале файла)" >&2
+    echo "Язык '$LANG_NAME' пока не поддержан этим скриптом (python, go, ruby, javascript, typescript, scala, ocaml)" >&2
     exit 1
     ;;
 esac
