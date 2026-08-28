@@ -1,0 +1,296 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import http from "node:http";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AddressInfo } from "node:net";
+import { test } from "node:test";
+import { createApp } from "../src/server.js";
+
+async function withServer(
+  fn: (baseUrl: string, dataDir: string) => Promise<void>,
+): Promise<void> {
+  const dataDir = await mkdtemp(join(tmpdir(), "syncbox-test-"));
+  const server = createApp(dataDir).listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    await fn(`http://127.0.0.1:${port}`, dataDir);
+  } finally {
+    server.close();
+    await rm(dataDir, { recursive: true, force: true });
+  }
+}
+
+function request(
+  url: string,
+  options: http.RequestOptions,
+  body?: Buffer,
+): Promise<{ status: number; body: Buffer }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(url, options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () =>
+        resolve({
+          status: res.statusCode ?? 0,
+          body: Buffer.concat(chunks),
+        }),
+      );
+    });
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+test("GET /healthz returns 200", async () => {
+  const server = createApp(await mkdtemp(join(tmpdir(), "syncbox-test-"))).listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    const status = await new Promise<number | undefined>((resolve, reject) => {
+      http
+        .get(`http://127.0.0.1:${port}/healthz`, (res) => {
+          res.resume();
+          resolve(res.statusCode);
+        })
+        .on("error", reject);
+    });
+    assert.equal(status, 200);
+  } finally {
+    server.close();
+  }
+});
+
+test("PUT /blobs/{key} stores the blob and returns 201 with key/sha256/size", async () => {
+  await withServer(async (baseUrl) => {
+    const content = Buffer.from("hello syncbox");
+    const res = await request(
+      `${baseUrl}/blobs/greeting.txt`,
+      { method: "PUT" },
+      content,
+    );
+
+    assert.equal(res.status, 201);
+    const parsed = JSON.parse(res.body.toString("utf8"));
+    assert.equal(parsed.key, "greeting.txt");
+    assert.equal(parsed.size, content.length);
+    assert.equal(
+      parsed.sha256,
+      createHash("sha256").update(content).digest("hex"),
+    );
+  });
+});
+
+test("PUT /blobs/{key} writes the file to disk under the data dir", async () => {
+  await withServer(async (baseUrl, dataDir) => {
+    const content = Buffer.from("on disk");
+    await request(`${baseUrl}/blobs/file.bin`, { method: "PUT" }, content);
+
+    const onDisk = await readFile(join(dataDir, "file.bin"));
+    assert.deepEqual(onDisk, content);
+  });
+});
+
+test("PUT /blobs/{key} creates nested directories as needed", async () => {
+  await withServer(async (baseUrl, dataDir) => {
+    const content = Buffer.from("nested content");
+    const res = await request(
+      `${baseUrl}/blobs/docs/readme.txt`,
+      { method: "PUT" },
+      content,
+    );
+
+    assert.equal(res.status, 201);
+    assert.equal(JSON.parse(res.body.toString("utf8")).key, "docs/readme.txt");
+
+    const onDisk = await readFile(join(dataDir, "docs", "readme.txt"));
+    assert.deepEqual(onDisk, content);
+  });
+});
+
+test("PUT /blobs/{key} on an existing key overwrites it", async () => {
+  await withServer(async (baseUrl) => {
+    await request(
+      `${baseUrl}/blobs/overwrite.txt`,
+      { method: "PUT" },
+      Buffer.from("first"),
+    );
+    const res = await request(
+      `${baseUrl}/blobs/overwrite.txt`,
+      { method: "PUT" },
+      Buffer.from("second"),
+    );
+
+    assert.equal(res.status, 201);
+    const get = await request(`${baseUrl}/blobs/overwrite.txt`, {
+      method: "GET",
+    });
+    assert.equal(get.body.toString("utf8"), "second");
+  });
+});
+
+test("GET /blobs/{key} returns 200 and the stored bytes", async () => {
+  await withServer(async (baseUrl) => {
+    const content = Buffer.from([0, 1, 2, 3, 255]);
+    await request(`${baseUrl}/blobs/bytes.bin`, { method: "PUT" }, content);
+
+    const res = await request(`${baseUrl}/blobs/bytes.bin`, {
+      method: "GET",
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, content);
+  });
+});
+
+test("GET /blobs/{key} on a nested key returns the stored bytes", async () => {
+  await withServer(async (baseUrl) => {
+    const content = Buffer.from("nested get");
+    await request(
+      `${baseUrl}/blobs/a/b/c.txt`,
+      { method: "PUT" },
+      content,
+    );
+
+    const res = await request(`${baseUrl}/blobs/a/b/c.txt`, {
+      method: "GET",
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, content);
+  });
+});
+
+test("GET /blobs/{key} returns 404 when the blob does not exist", async () => {
+  await withServer(async (baseUrl) => {
+    const res = await request(`${baseUrl}/blobs/missing.txt`, {
+      method: "GET",
+    });
+    assert.equal(res.status, 404);
+  });
+});
+
+test("GET /blobs returns an empty array when the store is empty", async () => {
+  await withServer(async (baseUrl) => {
+    const res = await request(`${baseUrl}/blobs`, { method: "GET" });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(JSON.parse(res.body.toString("utf8")), []);
+  });
+});
+
+test("GET /blobs lists stored blobs with key/size/sha256/modified_at", async () => {
+  await withServer(async (baseUrl) => {
+    const content = Buffer.from("list me");
+    await request(`${baseUrl}/blobs/top.txt`, { method: "PUT" }, content);
+
+    const res = await request(`${baseUrl}/blobs`, { method: "GET" });
+
+    assert.equal(res.status, 200);
+    const parsed = JSON.parse(res.body.toString("utf8"));
+    assert.equal(parsed.length, 1);
+    const entry = parsed[0];
+    assert.equal(entry.key, "top.txt");
+    assert.equal(entry.size, content.length);
+    assert.equal(
+      entry.sha256,
+      createHash("sha256").update(content).digest("hex"),
+    );
+    assert.equal(typeof entry.modified_at, "string");
+    assert.equal(new Date(entry.modified_at).toISOString(), entry.modified_at);
+  });
+});
+
+test("DELETE /blobs/{key} removes an existing blob and returns 204", async () => {
+  await withServer(async (baseUrl) => {
+    await request(
+      `${baseUrl}/blobs/to-delete.txt`,
+      { method: "PUT" },
+      Buffer.from("bye"),
+    );
+
+    const del = await request(`${baseUrl}/blobs/to-delete.txt`, {
+      method: "DELETE",
+    });
+    assert.equal(del.status, 204);
+    assert.equal(del.body.length, 0);
+
+    const get = await request(`${baseUrl}/blobs/to-delete.txt`, {
+      method: "GET",
+    });
+    assert.equal(get.status, 404);
+  });
+});
+
+test("DELETE /blobs/{key} removes the blob from the list", async () => {
+  await withServer(async (baseUrl) => {
+    await request(
+      `${baseUrl}/blobs/keep.txt`,
+      { method: "PUT" },
+      Buffer.from("keep"),
+    );
+    await request(
+      `${baseUrl}/blobs/remove.txt`,
+      { method: "PUT" },
+      Buffer.from("remove"),
+    );
+
+    await request(`${baseUrl}/blobs/remove.txt`, { method: "DELETE" });
+
+    const res = await request(`${baseUrl}/blobs`, { method: "GET" });
+    const keys = JSON.parse(res.body.toString("utf8")).map(
+      (entry: { key: string }) => entry.key,
+    );
+    assert.deepEqual(keys, ["keep.txt"]);
+  });
+});
+
+test("DELETE /blobs/{key} returns 404 when the blob does not exist", async () => {
+  await withServer(async (baseUrl) => {
+    const res = await request(`${baseUrl}/blobs/missing.txt`, {
+      method: "DELETE",
+    });
+    assert.equal(res.status, 404);
+  });
+});
+
+test("DELETE /blobs/{key} on a nested key removes it from disk", async () => {
+  await withServer(async (baseUrl, dataDir) => {
+    await request(
+      `${baseUrl}/blobs/a/b/c.txt`,
+      { method: "PUT" },
+      Buffer.from("nested"),
+    );
+
+    const del = await request(`${baseUrl}/blobs/a/b/c.txt`, {
+      method: "DELETE",
+    });
+    assert.equal(del.status, 204);
+
+    await assert.rejects(() => readFile(join(dataDir, "a", "b", "c.txt")));
+  });
+});
+
+test("GET /blobs includes nested keys as POSIX paths", async () => {
+  await withServer(async (baseUrl) => {
+    await request(
+      `${baseUrl}/blobs/docs/readme.txt`,
+      { method: "PUT" },
+      Buffer.from("nested"),
+    );
+    await request(
+      `${baseUrl}/blobs/root.txt`,
+      { method: "PUT" },
+      Buffer.from("root"),
+    );
+
+    const res = await request(`${baseUrl}/blobs`, { method: "GET" });
+
+    assert.equal(res.status, 200);
+    const keys = JSON.parse(res.body.toString("utf8"))
+      .map((entry: { key: string }) => entry.key)
+      .sort();
+    assert.deepEqual(keys, ["docs/readme.txt", "root.txt"]);
+  });
+});

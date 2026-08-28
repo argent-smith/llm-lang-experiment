@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require_relative "../lib/syncbox/config"
+require_relative "../lib/syncbox/server"
+
+begin
+  config = Syncbox::Config.parse(ARGV)
+rescue Syncbox::ConfigError => e
+  warn "syncbox-server: #{e.message}"
+  exit 1
+end
+
+FileUtils.mkdir_p(config.data_dir)
+
+Syncbox::Server.set(:data_dir, config.data_dir)
+Syncbox::Server.set(:port, config.port)
+Syncbox::Server.set(:bind, "0.0.0.0")
+Syncbox::Server.set(:server, "puma")
+Syncbox::Server.set(:environment, :production)
+
+Syncbox::Server.run!
