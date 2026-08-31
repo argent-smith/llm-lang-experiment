@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ $# -lt 1 ]]; then
+  echo "run-client: usage: run-client <push|pull|sync|status> <dir> --server <url>" >&2
+  exit 1
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+  push|pull|sync|status)
+    ;;
+  *)
+    echo "run-client: unknown command: $COMMAND" >&2
+    exit 1
+    ;;
+esac
+
+if [[ $# -lt 1 ]]; then
+  echo "run-client: missing <dir> argument" >&2
+  exit 1
+fi
+
+DIR="$1"
+shift
+
+if [[ ! -d "$DIR" ]]; then
+  echo "run-client: not a directory: $DIR" >&2
+  exit 1
+fi
+
+HOST_DIR="$(cd "$DIR" && pwd)"
+
+SERVER="${SYNCBOX_SERVER:-}"
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)
+      SERVER="${2:?--server requires a value}"
+      shift 2
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$SERVER" ]]; then
+  echo "run-client: --server is required (or set SYNCBOX_SERVER)" >&2
+  exit 1
+fi
+
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-syncbox-client}"
+
+cd "$SCRIPT_DIR"
+exec docker compose run --build --rm -v "$HOST_DIR:/workdir:rw" client "$COMMAND" /workdir --server "$SERVER" "${ARGS[@]}"
