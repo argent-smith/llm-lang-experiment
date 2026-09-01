@@ -107,11 +107,11 @@ head -c 4096 /dev/urandom >"$SRC_DIR/nested/dir/file.bin"
 SERVER_PID=$!
 
 wait_healthz() {
-  # 150 * 0.2s = 30s — с запасом на холодный docker build (первый
+  # 450 * 0.2s = 90s — с запасом на холодный docker build (первый
   # запуск, ещё не кешированный слой с python:3.12-slim), а не только
   # на старт самого сервера.
   local i
-  for i in $(seq 1 150); do
+  for i in $(seq 1 450); do
     if curl -fsS "$SERVER/healthz" >/dev/null 2>&1; then
       return 0
     fi

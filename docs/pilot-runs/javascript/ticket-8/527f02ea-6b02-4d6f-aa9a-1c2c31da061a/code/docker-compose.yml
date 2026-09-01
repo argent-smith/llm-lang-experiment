@@ -1,0 +1,22 @@
+services:
+  server:
+    build:
+      context: ./server
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    volumes:
+      - "${SYNCBOX_DATA_DIR_HOST:-./server/.data}:/data"
+    environment:
+      SYNCBOX_DATA_DIR: /data
+      SYNCBOX_PORT: "${SYNCBOX_PORT:-8080}"
+
+  client:
+    build:
+      context: ./client
+    # Shares the host's network namespace so that a --server URL reachable
+    # from the host (e.g. http://localhost:8080, as published by the
+    # `server` service above) is also reachable from inside this container,
+    # without the wrapper having to know or rewrite the URL it was given.
+    network_mode: host
+    environment:
+      SYNCBOX_SERVER: "${SYNCBOX_SERVER:-}"
