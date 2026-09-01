@@ -1,0 +1,56 @@
+import { ClientConfigError, parseClientConfig } from "./client-config.js";
+import { push } from "./push.js";
+
+/** Runs the client CLI and returns the process exit code. */
+export async function runClient(
+  argv: string[],
+  env: NodeJS.ProcessEnv,
+): Promise<number> {
+  let config;
+  try {
+    config = parseClientConfig({ argv, env });
+  } catch (err) {
+    if (err instanceof ClientConfigError) {
+      console.error(`syncbox: ${err.message}`);
+      return 1;
+    }
+    throw err;
+  }
+
+  switch (config.command) {
+    case "push":
+      return runPush(config.dir, config.server);
+    case "pull":
+    case "sync":
+    case "status":
+      console.error(`syncbox: '${config.command}' is not implemented yet`);
+      return 1;
+  }
+}
+
+async function runPush(dir: string, server: string): Promise<number> {
+  try {
+    const result = await push(dir, server);
+    for (const key of result.uploaded) {
+      console.log(`uploaded ${key}`);
+    }
+    console.log(
+      `push complete: ${result.uploaded.length} uploaded, ${result.skipped.length} unchanged`,
+    );
+    return 0;
+  } catch (err) {
+    console.error(`syncbox: push failed: ${describeError(err)}`);
+    return 1;
+  }
+}
+
+function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    const cause = (err as { cause?: unknown }).cause;
+    if (cause instanceof Error) {
+      return `${err.message}: ${cause.message}`;
+    }
+    return err.message;
+  }
+  return String(err);
+}
