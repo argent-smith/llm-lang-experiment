@@ -60,8 +60,8 @@ trap cleanup EXIT
 SERVER_PID=$!
 
 ok=0
-# 150 * 0.2s = 30s — с запасом на холодный docker build, см. smoke.sh.
-for _ in $(seq 1 150); do
+# 450 * 0.2s = 90s — с запасом на холодный docker build, см. smoke.sh.
+for _ in $(seq 1 450); do
   if curl -fsS "$SERVER/healthz" >/dev/null 2>&1; then
     ok=1
     break
@@ -69,7 +69,7 @@ for _ in $(seq 1 150); do
   sleep 0.2
 done
 if [[ $ok -ne 1 ]]; then
-  echo "сервер не поднялся за 30 секунд" >&2
+  echo "сервер не поднялся за 90 секунд" >&2
   exit 1
 fi
 

@@ -67,6 +67,14 @@ jobs:
           test -x "${{ steps.snap.outputs.dir }}/run-server" \
             || { echo "нет ${{ steps.snap.outputs.dir }}/run-server"; exit 1; }
 
+      - name: Прогреть образы снапшота (холодная сборка на раннере медленнее 30с)
+        run: |
+          cd "${{ steps.snap.outputs.dir }}"
+          # run-server у разных языков делает up/run с --build и без; собираем
+          # заранее, чтобы дальше сервер стартовал за секунды, а не за 40-60с
+          # bundle/pip install, и укладывался в ожидание contract-test.sh.
+          SYNCBOX_DATA_DIR=/tmp/warmup SYNCBOX_PORT=18081 docker compose build 2>&1 | tail -8
+
       - name: contract (жёсткий; schemathesis по syncbox-openapi.yaml)
         run: |
           PATH="$(pwd)/.venv/bin:$PATH" \
