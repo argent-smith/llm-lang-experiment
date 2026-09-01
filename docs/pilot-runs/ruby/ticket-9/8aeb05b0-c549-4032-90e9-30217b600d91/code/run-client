@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Wraps `docker compose run` so the client can be launched with the
+# CLI contract from SYNCBOX-SPEC.md:
+#   run-client <push|pull|status|sync> <dir> --server <url>
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir"
+
+if [[ $# -lt 1 ]]; then
+  echo "run-client: missing command (expected one of: push, pull, status, sync)" >&2
+  exit 1
+fi
+command="$1"
+shift
+
+if [[ $# -lt 1 ]]; then
+  echo "run-client: missing <dir> argument" >&2
+  exit 1
+fi
+dir="$1"
+shift
+
+server=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)
+      [[ $# -ge 2 ]] || { echo "run-client: --server requires a value" >&2; exit 1; }
+      server="$2"
+      shift 2
+      ;;
+    *)
+      echo "run-client: unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+server="${server:-${SYNCBOX_SERVER:-}}"
+
+if [[ ! -d "$dir" ]]; then
+  echo "run-client: not a directory: $dir" >&2
+  exit 1
+fi
+dir="$(cd "$dir" && pwd)"
+
+# The client runs inside its own container, not in the host's network
+# namespace, so a --server URL pointing at the loopback interface (how
+# run-server publishes the server's port to the host) isn't reachable
+# as-is from inside the client container. Rewrite just a loopback host to
+# the special host-gateway DNS name Docker resolves to the host machine
+# (wired up via extra_hosts in docker-compose.yml); leave any other host
+# (a real hostname, a container name on a shared network) untouched.
+if [[ -n "$server" ]]; then
+  server="$(printf '%s' "$server" | sed -E 's#^(https?://)(localhost|127\.0\.0\.1)(:|/|$)#\1host.docker.internal\3#')"
+fi
+
+export SYNCBOX_CLIENT_DIR="$dir"
+
+if [[ -n "$server" ]]; then
+  exec docker compose run --rm client "$command" /workdir --server "$server"
+else
+  # Neither --server nor SYNCBOX_SERVER was set; let the client itself
+  # report the standard "--server is required" error instead of
+  # duplicating that validation here.
+  exec docker compose run --rm client "$command" /workdir
+fi

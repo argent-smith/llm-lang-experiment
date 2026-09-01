@@ -1,0 +1,13 @@
+services:
+  server:
+    build: .
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    volumes:
+      - "${SYNCBOX_DATA_DIR_HOST:-./data}:/data"
+    command: ["python", "-m", "server", "--data-dir", "/data", "--port", "${SYNCBOX_PORT:-8080}"]
+
+  client:
+    build: .
+    network_mode: host
+    entrypoint: ["/app/syncbox"]
