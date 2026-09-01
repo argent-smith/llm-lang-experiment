@@ -41,15 +41,19 @@ help: ## Список целей
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: venv
-# Версии закреплены точно — тот же принцип, что и точный ID модели в
-# пилоте: инструмент проверки не должен дрейфовать между прогонами (иначе
-# нельзя отличить дрейф поведения генератора от изменения самой
-# реализации). schemathesis 4.x: syntax --config-file, [phases.coverage].
-venv: ## Локальное venv с openapi-spec-validator и schemathesis (версии закреплены)
+# Весь набор закреплён локфайлом acceptance/requirements-lock.txt (полный
+# `pip freeze` рабочего venv, 48 пинов) — тот же принцип, что и точный ID
+# модели: инструмент проверки не должен дрейфовать между прогонами.
+# schemathesis==4.24.3 сам по себе недостаточно: на свежем разрешении
+# зависимостей pip тянул несовместимую hypothesis, и schemathesis падал
+# `'CanonicalSchema' object has no attribute 'is_satisfiable'` (поймано
+# на CI с Python 3.14). Локфайл фиксирует и транзитивные пакеты, и через
+# CI закреплён Python 3.11 (см. .github/workflows/*.yml).
+venv: ## Локальное venv из acceptance/requirements-lock.txt (весь набор закреплён)
 	@test -x "$(VENV)/bin/schemathesis" || { \
 		$(PYTHON) -m venv $(VENV); \
 		$(VENV)/bin/pip install --quiet --upgrade pip; \
-		$(VENV)/bin/pip install --quiet 'openapi-spec-validator==0.9.0' 'schemathesis==4.24.3'; \
+		$(VENV)/bin/pip install --quiet -r acceptance/requirements-lock.txt; \
 	}
 
 .PHONY: shellcheck
