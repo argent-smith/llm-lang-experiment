@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Runs the implementation's own test suite in Docker (never directly on the
+# host), per SYNCBOX-SPEC.md "Критерии приёмки". Exit non-zero if any test fails.
+set -euo pipefail
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+docker compose build server >&2
+exec docker compose run --rm --no-deps -T server python -m pytest -q tests/

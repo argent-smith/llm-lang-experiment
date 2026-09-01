@@ -255,7 +255,11 @@ docker run --rm -i \
 # шагом и не успела случиться до того, как следующая попытка
 # перезаписала файл по тому же пути — см. docs/pilot-runs/README.md.
 LANG_TAG="$(basename "$PILOT_DIR" | sed 's/^syncbox-//')"
-TICKET_TAG="$(basename "$PROMPT_FILE" | sed -E 's/^\.?ticket-([0-9]+)-prompt\.txt$/\1/')"
+# Имя файла-промпта: ticket-<N>-prompt.txt (обычный тикет бэклога) либо
+# ticket-<N>-<slug>-prompt.txt для внеплановых фикс-тикетов
+# (например ticket-12-fix-put500-prompt.txt -> бакет ticket-12-fix-put500).
+# Лидирующая точка (dotfile в директории пилота) необязательна и срезается.
+TICKET_TAG="$(basename "$PROMPT_FILE" | sed -E 's/^\.?ticket-([0-9]+(-[a-z0-9]+)*)-prompt\.txt$/\1/')"
 SESSION_ID="$(python3 -c "import json; print(json.load(open('${OUTPUT_PREFIX}.json')).get('session_id',''))" 2>/dev/null || echo "unknown-session")"
 ARCHIVE_DIR="$REPO_ROOT/docs/pilot-runs/$LANG_TAG/ticket-$TICKET_TAG/$SESSION_ID"
 mkdir -p "$ARCHIVE_DIR"

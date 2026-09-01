@@ -16,7 +16,9 @@
 # не занимается такими методами отдельно от стандартного поведения
 # http.server.
 #
-# Требует: bash, curl, Python-пакет schemathesis (pip install schemathesis).
+# Требует: bash, curl, Python-пакет schemathesis (закреплённая версия —
+# см. цель `venv` в Makefile). Конфиг генератора — acceptance/schemathesis.toml
+# (держит проверку в рамках контракта: без подтеста неизвестных HTTP-методов).
 #
 # Использование:
 #   acceptance/contract-test.sh <impl-dir> [port]
@@ -26,6 +28,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SCHEMA="$REPO_ROOT/docs/syncbox-openapi.yaml"
+CONFIG="$SCRIPT_DIR/schemathesis.toml"
 
 IMPL_DIR="${1:?Использование: contract-test.sh <impl-dir> [port]}"
 PORT="${2:-18081}"
@@ -70,6 +73,8 @@ if [[ $ok -ne 1 ]]; then
   exit 1
 fi
 
-schemathesis run "$SCHEMA" \
+# --config-file — глобальная опция, идёт ДО подкоманды `run` (после `run`
+# schemathesis 4.x её не принимает).
+schemathesis --config-file "$CONFIG" run "$SCHEMA" \
   --url "$SERVER" \
   --checks not_a_server_error,status_code_conformance,response_schema_conformance

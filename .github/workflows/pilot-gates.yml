@@ -1,0 +1,97 @@
+name: pilot-gates
+
+# Гоняет acceptance-гейты (smoke + contract) против КАНОНИЧЕСКОГО снапшота
+# каждой пилотной реализации языка доклада — на Linux, где нет virtiofs
+# Docker Desktop и контрактный тест детерминирован (в отличие от локального
+# macOS, см. docs/incidents/2026-08-31-contract-gate-tooling/).
+#
+# Снапшоты — в docs/pilot-runs/<lang>/ticket-<N>/<session>/code/ (закоммичены,
+# самодостаточны). Какой из них канонический на язык — в
+# docs/pilot-runs/manifest.json (поле canonical_ticket).
+#
+# contract — жёсткий гейт (падение блокирует). smoke — информационный:
+# пока не сделаны клиентские тикеты 8–11, его шаги 08–11 (sync/status/pull)
+# падают by design; результат — в summary, merge не блокирует.
+#
+# Пилот — это измерение, не поддерживаемый продукт: жёсткий здесь только
+# contract, и только чтобы регрессия в закоммиченном снапшоте не прошла
+# незамеченной.
+
+on:
+  push:
+    paths:
+      - "docs/pilot-runs/**"
+      - "acceptance/**"
+      - "docs/syncbox-openapi.yaml"
+      - ".github/workflows/pilot-gates.yml"
+      - "Makefile"
+  pull_request:
+    paths:
+      - "docs/pilot-runs/**"
+      - "acceptance/**"
+      - "docs/syncbox-openapi.yaml"
+      - ".github/workflows/pilot-gates.yml"
+  workflow_dispatch:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [python, javascript, typescript, ruby]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: venv (schemathesis, закреплённая версия)
+        run: make venv
+
+      - name: Разрешить канонический снапшот из manifest.json
+        id: snap
+        run: |
+          python3 - "${{ matrix.lang }}" <<'PY' >> "$GITHUB_OUTPUT"
+          import json, sys
+          lang = sys.argv[1]
+          m = json.load(open("docs/pilot-runs/manifest.json"))["languages"][lang]
+          path = m["tickets"][m["canonical_ticket"]] + "/code"
+          print(f"dir={path}")
+          print(f"ticket={m['canonical_ticket']}")
+          PY
+
+      - name: Гейты не найдены — снапшот отсутствует
+        run: |
+          test -x "${{ steps.snap.outputs.dir }}/run-server" \
+            || { echo "нет ${{ steps.snap.outputs.dir }}/run-server"; exit 1; }
+
+      - name: contract (жёсткий; schemathesis по syncbox-openapi.yaml)
+        run: |
+          PATH="$(pwd)/.venv/bin:$PATH" \
+            acceptance/contract-test.sh "${{ steps.snap.outputs.dir }}" 18081
+
+      - name: smoke (информационный; шаги sync/status/pull падают до тикетов 8–11)
+        id: smoke
+        continue-on-error: true
+        run: |
+          acceptance/smoke.sh "${{ steps.snap.outputs.dir }}" 18080 | tee smoke.out
+          echo "### smoke $LANG ($TICKET)" >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(PASS|FAIL) |^Итог:' smoke.out >> "$GITHUB_STEP_SUMMARY" || true
+        env:
+          LANG: ${{ matrix.lang }}
+          TICKET: ${{ steps.snap.outputs.ticket }}
+
+      - name: run-tests (информационный; только если снапшот несёт обёртку)
+        continue-on-error: true
+        run: |
+          rt="${{ steps.snap.outputs.dir }}/run-tests"
+          if [ -x "$rt" ]; then
+            "$rt" | tee tests.out || true
+            echo "### run-tests ${{ matrix.lang }}" >> "$GITHUB_STEP_SUMMARY"
+            tail -20 tests.out >> "$GITHUB_STEP_SUMMARY" || true
+          else
+            echo "run-tests отсутствует в снапшоте (тикеты 1–12 — до конвенции); пропуск" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
