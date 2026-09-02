@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Runs the implementation's own test suite in Docker (never directly on the
+# host), per SYNCBOX-SPEC.md. Uses the dedicated `test` compose service
+# (bundle exec rspec). Exit non-zero if any example fails.
+set -euo pipefail
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+docker compose build test >&2
+exec docker compose run --rm -T test

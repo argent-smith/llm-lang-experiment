@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Forwards a Syncbox CLI subcommand to the client, inside a Docker container
+# via `docker compose run`, per SYNCBOX-SPEC.md.
+#
+# Usage: run-client <push|pull|sync|status> <dir> --server <url>
+# --server can also come from SYNCBOX_SERVER.
+set -euo pipefail
+
+usage() {
+  echo "run-client: usage: run-client <push|pull|sync|status> <dir> --server <url>" >&2
+}
+
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 1
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+  push|pull|sync|status) ;;
+  *)
+    echo "run-client: unknown command: $COMMAND (expected one of: push, pull, sync, status)" >&2
+    exit 1
+    ;;
+esac
+
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 1
+fi
+
+DIR="$1"
+shift
+
+mkdir -p "$DIR"
+DIR="$(cd "$DIR" && pwd)"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+
+ENV_ARGS=()
+if [[ -n "${SYNCBOX_SERVER:-}" ]]; then
+  ENV_ARGS=(-e "SYNCBOX_SERVER=$SYNCBOX_SERVER")
+fi
+
+exec docker compose run --rm --build \
+  -v "$DIR:/workdir" \
+  "${ENV_ARGS[@]+"${ENV_ARGS[@]}"}" \
+  client "$COMMAND" /workdir "$@"
