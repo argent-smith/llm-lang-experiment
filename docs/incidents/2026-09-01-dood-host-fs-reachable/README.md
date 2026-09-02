@@ -40,11 +40,11 @@ Desktop) резолвит против **своего** вида хоста — 
 Среди ~тысяч путей:
 
 - скрэтч и `tasks/*.output` чужих сессий Claude Code
-  (`claude-501/-Users-<user>-Development-<work-project>/<uuid>/...`);
+  (`claude-501/<slug другого проекта>/<uuid>/...`);
 - скрэтч **этой самой сессии эксперимента**
-  (`claude-501/-Users-<user>-work-llm-lang-experiment/<uuid>/scratchpad/ticket8-out/typescript.loop.json`,
+  (`claude-501/<slug этого репозитория>/<uuid>/scratchpad/ticket8-out/typescript.loop.json`,
   `loop-shakedown/`, `reverify/`, `run-ticket9.sh`, `insert-ticket8.py`…);
-- посторонний хостовый мусор (Arturia, Adobe `ExmanProcessMutex`, …).
+- посторонний хостовый мусор (артефакты сторонних macOS-приложений, …).
 
 Агент распознал это («нюанс окружения»), остановил и удалил контейнеры,
 `rm -rf` свой собственный `/tmp/sb-*` скрэтч (внутри контейнера харнеса,
@@ -108,7 +108,7 @@ Python/JS/TS в тикете 9 в эту ловушку не попали — и
 Проверено синтетически 2026-09-01 (после сборки нового образа): из
 контейнера харнеса `docker run -v /tmp:/probe` и `-v /Users:/u` в
 дочерних контейнерах не видят ничего с хоста (`/probe` пуст, маркер-файл
-недоступен, `/Users/<user>` отсутствует); `docker images`/`docker ps`
+недоступен, `<host-path>` отсутствует); `docker images`/`docker ps`
 внутреннего демона пусты — прежние мягкие каналы (`docker images`,
 `docker inspect` своего контейнера) закрыты заодно.
 
