@@ -36,10 +36,15 @@
 # уже claude -p --dangerously-skip-permissions — это не расширение
 # периметра, барьер по-прежнему один (namespace-изоляция самого
 # контейнера от хоста), просто теперь замкнутый; (2) внутренний демон
-# стартует без кеша слоёв — каждый прогон заново тянет базовые образы
-# (python:3.12-slim, node:22-alpine, ruby:3.3-slim и т. п.), ~1 мин
-# инфра-времени, одинаково по языкам, отдельной статьёй в
-# timing-breakdown.
+# стартует без кеша слоёв. Базовые образы (python:3.12-slim,
+# node:22-alpine, ruby:3.3-slim, alpine) предзапечены в этот образ
+# харнеса как /base-images.tar (scripts/build-base-images-tar.sh) и
+# `docker load`-ятся вложенным демоном на старте — иначе `docker compose
+# build` кода тикета тянул бы базу с registry каждый прогон (~1-2 мин),
+# и это время попадало бы в измеряемый duration по-разному для разных
+# языков (сломало метрику на тикете 10 —
+# docs/incidents/2026-09-02-dind-timing-broken/). Сам pull базы —
+# один раз, при сборке этого образа, в duration прогонов не входит.
 #
 # Версия Claude Code закреплена (не @latest) — тот же принцип, что и
 # точный ID модели: дрейф версии харнеса не должен подмешиваться к
@@ -60,8 +65,20 @@ RUN adduser -D -u 1000 node
 # Внутренний dockerd слушает только unix-сокет, без TLS и без TCP.
 ENV DOCKER_TLS_CERTDIR=""
 
+# Предзапечённые базовые образы языковых стендов — грузятся вложенным
+# демоном в pilot-harness-entrypoint.sh. Генерится scripts/build-base-images-tar.sh
+# (гитигнорится). Если файла нет — сборка не падает, но прогоны будут
+# тянуть базу с registry (медленнее, метрика времени зашумлена).
+COPY base-images.ta[r] /base-images.tar
+
 COPY pilot-harness-entrypoint.sh /usr/local/bin/pilot-harness-entrypoint.sh
 RUN chmod +x /usr/local/bin/pilot-harness-entrypoint.sh
+
+# Агент стартует в директории пилота, как и на прежнем (DooD) харнессе.
+# Пропало при переходе на docker:27-dind (в его образе своего WORKDIR
+# нет), из-за чего на тикетах 9-shakedown и 10 claude запускался из `/`
+# и сам доходил до /workspace — восстановлено.
+WORKDIR /workspace
 
 # ENTRYPOINT базового образа (dockerd-entrypoint.sh) переопределяется:
 # наш скрипт поднимает dockerd в фоне через него же, ждёт сокет,

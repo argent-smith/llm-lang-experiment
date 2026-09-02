@@ -194,6 +194,18 @@ trap 'rm -rf "$CLAUDE_HOME_DIR"' EXIT
 # файла (`exit "$CLAUDE_EXIT"`) — кейсы провала не маскируются, только
 # не блокируют архивацию.
 CLAUDE_EXIT=0
+# Свежий старт: убрать транскрипт прошлого прогона, чтобы не подхватить
+# его, если текущий не допишет свой (entrypoint кладёт копию сюда).
+rm -f "$PILOT_DIR/.harness-session-transcript.jsonl"
+
+# Внешний wall-clock вокруг `docker run` — источник истины для полного
+# времени попытки. Под DinD `duration_ms` из result.json недосчитывает
+# (старт вложенного dockerd до запуска claude из него выпадает; на
+# тикете 10 `duration_ms` < реального span'а транскрипта, а
+# `duration_api_ms` его превышал — tool_ms_total уходил в минус, см.
+# docs/incidents/2026-09-02-dind-timing-broken/). Меряем сами и отдаём
+# analyze-timing-breakdown.py.
+WALL_START_MS="$(python3 -c 'import time; print(int(time.time() * 1000))')"
 docker run --rm -i \
   --privileged \
   -v "$PILOT_DIR:/workspace:rw" \
@@ -211,6 +223,8 @@ docker run --rm -i \
   >"${OUTPUT_PREFIX}.json" \
   2>"${OUTPUT_PREFIX}.stderr.log" \
   || CLAUDE_EXIT=$?
+WALL_END_MS="$(python3 -c 'import time; print(int(time.time() * 1000))')"
+CONTAINER_WALL_MS=$((WALL_END_MS - WALL_START_MS))
 
 # Архивация промпта/спецификации/результата в docs/pilot-runs — без
 # этого peer review не может проверить, что именно видел агент, не
@@ -234,20 +248,33 @@ cp "$PILOT_DIR/SYNCBOX-SPEC.md" "$ARCHIVE_DIR/SYNCBOX-SPEC.md"
 cp "$PILOT_DIR/syncbox-openapi.yaml" "$ARCHIVE_DIR/syncbox-openapi.yaml"
 cp "${OUTPUT_PREFIX}.json" "$ARCHIVE_DIR/result.json"
 
-# Полный JSONL-транскрипт сессии — из одноразового $CLAUDE_HOME_DIR
-# (см. docker run выше), не из хостового ~/.claude: там его нет и не
-# будет для контейнеризованных вызовов. Копируем до срабатывания trap,
-# который снесёт $CLAUDE_HOME_DIR при выходе. Один файл ожидается
-# (cwd внутри контейнера всегда /workspace, кодируется в одно и то же
-# имя поддиректории projects/) — если файлов несколько или их нет,
-# берём что есть/пропускаем без падения всего скрипта, транскрипт не
-# входит в критерии сошлось/сдалось.
-TRANSCRIPT="$(find "$CLAUDE_HOME_DIR/projects" -name '*.jsonl' 2>/dev/null | head -1)"
-if [ -n "$TRANSCRIPT" ]; then
+# Внешний тайминг попытки — рядом с result.json. container_wall_ms:
+# полное время `docker run` (включая старт вложенного dockerd, загрузку
+# предзапечённых образов, сам claude -p). analyze-timing-breakdown.py
+# берёт его как базу вместо ненадёжного под DinD duration_ms.
+printf '{"container_wall_ms": %s, "claude_exit": %s}\n' \
+  "$CONTAINER_WALL_MS" "$CLAUDE_EXIT" > "$ARCHIVE_DIR/harness-timing.json"
+
+# Полный JSONL-транскрипт сессии. Приоритет — копия, которую
+# pilot-harness-entrypoint.sh кладёт в /workspace (= $PILOT_DIR на хосте)
+# ПЕРЕД teardown контейнера: одноразовый $CLAUDE_HOME_DIR под DinD не
+# всегда успевает сброситься на bind-mount, из-за чего архивный
+# транскрипт обрезался (тикет 10 — ~12% времени прогона, без
+# docker-команд агента; docs/incidents/2026-09-02-dind-timing-broken/).
+# Fallback — прежний путь через $CLAUDE_HOME_DIR (архивы до этого фикса,
+# и на случай, если entrypoint не успел).
+TRANSCRIPT=""
+if [ -f "$PILOT_DIR/.harness-session-transcript.jsonl" ]; then
+  TRANSCRIPT="$PILOT_DIR/.harness-session-transcript.jsonl"
+else
+  TRANSCRIPT="$(find "$CLAUDE_HOME_DIR/projects" -name '*.jsonl' 2>/dev/null | head -1)"
+fi
+if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
   cp "$TRANSCRIPT" "$ARCHIVE_DIR/transcript.jsonl"
 else
-  echo "run-pilot-ticket.sh: транскрипт сессии не найден в $CLAUDE_HOME_DIR/projects — архив без transcript.jsonl" >&2
+  echo "run-pilot-ticket.sh: транскрипт сессии не найден ни в /workspace, ни в $CLAUDE_HOME_DIR/projects — архив без transcript.jsonl" >&2
 fi
+rm -f "$PILOT_DIR/.harness-session-transcript.jsonl"
 
 # Код, который написал агент, — тоже архивируется, не только промпт и
 # результат: нужен для независимого чтения peer review. Свои же
@@ -272,6 +299,7 @@ fi
 # языков (venv/сборочный вывод/кеш пакетного менеджера), даже если на
 # сегодняшних семи языках пилота не все успели проявиться.
 rsync -a --exclude='.ticket-*' --exclude='.git' \
+  --exclude='.harness-session-transcript.jsonl' \
   --exclude='node_modules' --exclude='dist' --exclude='build' \
   --exclude='.venv' --exclude='venv' --exclude='__pycache__' \
   --exclude='vendor/bundle' --exclude='.bundle' \

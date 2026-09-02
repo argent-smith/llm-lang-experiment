@@ -1,9 +1,14 @@
 {
   "session_id": "c9188c24-a45d-46c1-ab82-d03176b3f865",
+  "wall_source": "duration_ms",
+  "wall_ms": 535024,
+  "model_ms": 534565,
+  "tool_wall_ms": 459,
+  "infra_ms": 0,
+  "work_ms": 459,
   "duration_ms": 535024,
   "duration_api_ms": 817048,
-  "tool_ms_total": -282024,
-  "infra_ms": 0,
-  "work_ms": -282024,
-  "note": "work_ms = tool_ms_total - infra_ms (остаток от официального duration_ms - duration_api_ms, не независимая сумма по транскрипту)"
+  "warning": "транскрипт (span 808657 мс) длиннее duration_ms (535024 мс) — duration_ms недосчитан под DinD, внешнего container_wall_ms в архиве нет (сделан до почина 2026-09-02); wall_ms и разбивка недостоверны.",
+  "note_duration_api": "duration_api_ms (817048 мс) > wall_ms (535024 мс): поле Claude Code завышено для этого прогона (перекрытие стриминга/очереди), поэтому в арифметике не используется — model_ms считается как остаток.",
+  "note": "wall_ms — полное время попытки (container_wall_ms из harness-timing.json, внешний замер вокруг docker run; для архивов до 2026-09-02 — duration_ms). tool_wall_ms — прямая сумма wall-time пар tool_use/tool_result транскрипта. infra_ms — её инфраструктурная часть (загрузка образов/зависимостей) по классификатору BuildKit-вывода. work_ms = tool_wall_ms - infra_ms. model_ms = wall_ms - tool_wall_ms (генерация модели + стриминг + оверхед)."
 }
