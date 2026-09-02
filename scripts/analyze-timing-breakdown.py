@@ -10,12 +10,18 @@
 отличить холодную загрузку Docker-образа/пакетов от того, что модель
 реально сделала.
 
-Метод:
-  - `duration_api_ms` из result.json — уже готовое, официальное время
-    модели (сумма по всем турнам вызова, не наша оценка).
-  - Инструментальное время (duration_ms - duration_api_ms) разбирается по
-    transcript.jsonl: для каждой пары tool_use/tool_result считается
-    wall-time (timestamp tool_result минус timestamp tool_use).
+Метод (с почина 2026-09-02 — см. docs/incidents/2026-09-02-dind-timing-broken/):
+  - `wall_ms` — полное время попытки: `container_wall_ms` из
+    harness-timing.json (внешний замер run-pilot-ticket.sh вокруг
+    `docker run`), либо `duration_ms` из result.json для архивов до
+    почина (DooD). `duration_api_ms` в арифметике НЕ используется — под
+    DinD/троттлингом оно завышено (сумма по турнам, перекрывается
+    стримингом; на прогоне cbbf82af — на 15 с больше всего времени
+    жизни контейнера), остаётся справочным полем.
+  - `tool_wall_ms` — прямая сумма wall-time всех пар tool_use/tool_result
+    из transcript.jsonl (timestamp tool_result минус timestamp tool_use).
+    Clean subset wall-time, неотрицательна. Требует полного транскрипта:
+    entrypoint харнеса копирует его на bind-mount до teardown контейнера.
   - Bash-команды классифицируются по паттерну: `docker pull`/`docker
     build`/`docker compose build` — разбираются ДОПОЛНИТЕЛЬНО построчно
     по BuildKit-выводу (`#N [stage step] INSTRUCTION` + `#N DONE X.Ys`/
@@ -36,11 +42,12 @@
     работой. Более грубо, чем BuildKit-разбор, но точнее, чем "работа"
     по умолчанию на вызове, где 9 из 14 шагов — `opam install`
     полусотни транзитивных пакетов Dream.
-  - `инфра_ms` = сумма классифицированных инфраструктурных кусков.
-    `работа_ms` = (duration_ms - duration_api_ms) - инфра_ms — не
-    независимая сумма, а остаток от уже известного (из result.json)
-    инструментального времени, чтобы не накапливать дрейф от
-    построчного тайминга транскрипта.
+  - `инфра_ms` = сумма классифицированных инфраструктурных кусков
+    tool_wall_ms. `работа_ms` = tool_wall_ms - инфра_ms.
+    `model_ms` = wall_ms - tool_wall_ms (генерация модели + стриминг +
+    оверхед). Все три неотрицательны по построению. На DooD совпадает со
+    старым методом (тикет 9, Python: model 294 с ≈ прежнее api 296 с,
+    work 63 с).
 
 Ограничение метода: классификация — эвристика по ключевым словам, не
 парсинг AST Dockerfile. Не проверялась на языках вне уже прогнанных
@@ -194,14 +201,37 @@ def analyze(archive_dir: Path, verbose=False):
     result = json.loads(result_path.read_text())
     duration_ms = result["duration_ms"]
     duration_api_ms = result["duration_api_ms"]
-    tool_ms_total = duration_ms - duration_api_ms
 
+    # Полное время попытки. Приоритет — внешний wall-clock вокруг
+    # `docker run` (harness-timing.json, пишет run-pilot-ticket.sh):
+    # под Docker-in-Docker `duration_ms` из result.json недосчитывает
+    # (старт вложенного dockerd до запуска claude из его self-таймера
+    # выпадает), из-за чего tool_ms_total = duration_ms - duration_api_ms
+    # уходил в минус на тикете 10. Для архивов до этого фикса (DooD,
+    # harness-timing.json нет) остаётся duration_ms.
+    harness_timing_path = archive_dir / "harness-timing.json"
+    wall_source = "duration_ms"
+    wall_ms = duration_ms
+    if harness_timing_path.exists():
+        try:
+            ht = json.loads(harness_timing_path.read_text())
+            cw = ht.get("container_wall_ms")
+            if isinstance(cw, (int, float)) and cw > 0:
+                wall_ms = cw
+                wall_source = "container_wall_ms"
+        except (ValueError, OSError):
+            pass
     infra_ms = 0.0
+    tool_wall_ms = 0.0  # прямая сумма wall-time всех пар tool_use/tool_result
+    transcript_span_ms = 0.0
     events = []
 
     if transcript_path.exists():
         lines = transcript_path.read_text().splitlines()
         records = [json.loads(l) for l in lines if l.strip()]
+        _all_ts = [parse_ts(r["timestamp"]) for r in records if r.get("timestamp")]
+        if len(_all_ts) >= 2:
+            transcript_span_ms = (max(_all_ts) - min(_all_ts)).total_seconds() * 1000
         # индекс: tool_use_id -> (command/name, timestamp вызова)
         pending = {}
         for rec in records:
@@ -233,6 +263,7 @@ def analyze(archive_dir: Path, verbose=False):
                     elapsed = (t1 - t0).total_seconds()
                     if elapsed <= 0:
                         continue
+                    tool_wall_ms += elapsed * 1000
                     name = call["name"]
                     classification = "work"
                     detail = ""
@@ -276,16 +307,61 @@ def analyze(archive_dir: Path, verbose=False):
                             "detail": detail,
                         })
 
-    work_ms = tool_ms_total - infra_ms
+    # tool_wall_ms — прямая сумма wall-time всех пар tool_use/tool_result из
+    # транскрипта (не остаток `wall_ms - duration_api_ms`). Причина: под
+    # DinD/троттлингом `duration_api_ms` из result.json завышен — на прогоне
+    # cbbf82af он на 15 с БОЛЬШЕ всего времени жизни контейнера, хотя агент
+    # сделал ~1 с локальной работы. `wall - duration_api_ms` уходило в минус.
+    # Прямая сумма по транскрипту — clean subset wall-time, неотрицательна по
+    # построению (требует полного транскрипта — почин 2026-09-02, см. ниже).
+    work_ms = tool_wall_ms - infra_ms
+    model_ms = wall_ms - tool_wall_ms  # остаток: генерация + стриминг + оверхед
     breakdown = {
         "session_id": result.get("session_id"),
-        "duration_ms": duration_ms,
-        "duration_api_ms": duration_api_ms,
-        "tool_ms_total": tool_ms_total,
+        "wall_source": wall_source,
+        "wall_ms": round(wall_ms),
+        "model_ms": round(model_ms),
+        "tool_wall_ms": round(tool_wall_ms),
         "infra_ms": round(infra_ms),
         "work_ms": round(work_ms),
-        "note": "work_ms = tool_ms_total - infra_ms (остаток от официального duration_ms - duration_api_ms, не независимая сумма по транскрипту)",
+        "duration_ms": duration_ms,
+        "duration_api_ms": duration_api_ms,
     }
+    # Диагностика достоверности разбивки:
+    #  - транскрипт короче времени прогона -> обрезан при teardown
+    #    DinD-контейнера (архив до почина 2026-09-02);
+    #  - транскрипт ДЛИННЕЕ wall_ms и wall взят из duration_ms -> сам
+    #    duration_ms недосчитан под DinD, а внешнего container_wall_ms нет.
+    # В обоих случаях tool_wall_ms/infra/work по этому архиву недостоверны.
+    if not transcript_path.exists():
+        breakdown["warning"] = "нет transcript.jsonl — infra/work не посчитаны, model_ms = wall_ms."
+    elif transcript_span_ms and transcript_span_ms < 0.7 * wall_ms:
+        breakdown["warning"] = (
+            f"транскрипт охватывает лишь {transcript_span_ms / wall_ms:.0%} времени прогона — "
+            "обрезан при teardown DinD-контейнера (архив до почина 2026-09-02); "
+            "tool_wall_ms/infra/work недостоверны."
+        )
+    elif wall_source == "duration_ms" and transcript_span_ms > 1.1 * wall_ms:
+        breakdown["warning"] = (
+            f"транскрипт (span {round(transcript_span_ms)} мс) длиннее duration_ms "
+            f"({duration_ms} мс) — duration_ms недосчитан под DinD, внешнего "
+            "container_wall_ms в архиве нет (сделан до почина 2026-09-02); "
+            "wall_ms и разбивка недостоверны."
+        )
+    if duration_api_ms > wall_ms:
+        breakdown["note_duration_api"] = (
+            f"duration_api_ms ({duration_api_ms} мс) > wall_ms ({round(wall_ms)} мс): "
+            "поле Claude Code завышено для этого прогона (перекрытие стриминга/очереди), "
+            "поэтому в арифметике не используется — model_ms считается как остаток."
+        )
+    breakdown["note"] = (
+        "wall_ms — полное время попытки (container_wall_ms из harness-timing.json, "
+        "внешний замер вокруг docker run; для архивов до 2026-09-02 — duration_ms). "
+        "tool_wall_ms — прямая сумма wall-time пар tool_use/tool_result транскрипта. "
+        "infra_ms — её инфраструктурная часть (загрузка образов/зависимостей) по "
+        "классификатору BuildKit-вывода. work_ms = tool_wall_ms - infra_ms. "
+        "model_ms = wall_ms - tool_wall_ms (генерация модели + стриминг + оверхед)."
+    )
     if verbose:
         breakdown["events"] = events
 
@@ -301,10 +377,10 @@ if __name__ == "__main__":
     verbose = "--verbose" in sys.argv
     archive_dir = Path([a for a in sys.argv[1:] if not a.startswith("--")][0])
     b = analyze(archive_dir, verbose=verbose)
-    total_s = b["duration_ms"] / 1000
     print(
-        f"{archive_dir.name}: total={total_s:.1f}s "
-        f"api={b['duration_api_ms']/1000:.1f}s "
+        f"{archive_dir.name}: wall={b['wall_ms']/1000:.1f}s ({b['wall_source']}) "
+        f"model={b['model_ms']/1000:.1f}s "
         f"infra={b['infra_ms']/1000:.1f}s "
         f"work={b['work_ms']/1000:.1f}s"
+        + (f"  [{b['warning']}]" if b.get("warning") else "")
     )

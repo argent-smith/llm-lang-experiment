@@ -12,3 +12,10 @@ pilot-runs-live/
 .bloop/
 .scala-build/
 _build/
+
+# Предзапечённые базовые образы для DinD-харнеса (крупный, регенится
+# scripts/build-base-images-tar.sh)
+scripts/base-images.tar
+
+# Промежуточная копия транскрипта сессии из pilot-harness-entrypoint.sh
+pilot-runs-live/*/.harness-session-transcript.jsonl

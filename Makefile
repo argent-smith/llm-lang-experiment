@@ -23,8 +23,10 @@ MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	docs/incidents/2026-08-31-contract-gate-tooling/README.md \
 	docs/incidents/2026-08-31-js-fix-ticket-rm-data/README.md \
 	docs/incidents/2026-09-01-dood-host-fs-reachable/README.md \
+	docs/incidents/2026-09-02-dind-timing-broken/README.md \
 	docs/pilot-runs/README.md \
 	docs/pilot-runs/python/ticket-9-dind-shakedown/NOTE.md \
+	docs/pilot-runs/python/ticket-10-dind-timing-verify/NOTE.md \
 	docs/pilot-runs/python/ticket-12-readside/b163903f-4867-43bf-b924-8735a3dc1e37/NOTE.md \
 	docs/pilot-runs/python/ticket-1/attempt-1-9baff2a0-contaminated/NOTE.md \
 	docs/pilot-runs/go/ticket-2/attempt-1-f50e806a-network-blocked/NOTE.md \
@@ -64,7 +66,7 @@ shellcheck: ## shellcheck по bash-скриптам acceptance/ и scripts/
 		acceptance/reference-impl/run-server acceptance/reference-impl/run-client \
 		acceptance/reference-impl/_docker.sh \
 		scripts/run-pilot-ticket.sh scripts/run-gates.sh scripts/run-pilot-loop.sh \
-		scripts/pilot-harness-entrypoint.sh
+		scripts/pilot-harness-entrypoint.sh scripts/build-base-images-tar.sh
 
 .PHONY: markdownlint
 markdownlint: ## markdownlint по документации
