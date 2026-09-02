@@ -1,7 +1,7 @@
 # Инцидент: контаминация тикета 1 (Python) через чтение эталонной реализации
 
 Дата: 2026-08-19. Прогон: тикет 1, Python, `session_id` `9baff2a0-3a81-4c4c-b481-6702b94bb7ef`,
-директория пилота `/Users/<user>/work/syncbox-python`.
+директория пилота `<pilot-host-dir>`.
 
 ## Что произошло
 
@@ -25,8 +25,8 @@
 мира.
 
 Подтверждено также разбором полного транскрипта сессии
-(`~/.claude/projects/-Users-<user>-work-syncbox-python/9baff2a0-....jsonl`):
-последовательность вызовов `Bash: ls -la /Users/<user>/work/llm-lang-experiment`,
+(`<host-project-slug>/9baff2a0-....jsonl`):
+последовательность вызовов `Bash: ls -la <meta-repo-host-dir>`,
 `Bash: find .../acceptance -iname "*docker-compose*"`, затем `Read` по
 `acceptance/reference-impl/{docker-compose.yml,run-server,run-client,Dockerfile,README.md,_docker.sh,server.py}`
 и `acceptance/{smoke.sh,contract-test.sh}`.
@@ -49,7 +49,7 @@
 2. **Отсутствовала файловая изоляция на уровне харнесса.** `--safe-mode`
    отключает CLAUDE.md/хуки/скиллы/плагины этого метарепозитория, но не
    ограничивает файловую систему — агент с доступом к Bash/Read мог
-   свободно читать что угодно за пределами `/Users/<user>/work/syncbox-python`,
+   свободно читать что угодно за пределами `<pilot-host-dir>`,
    включая соседние директории на том же хосте.
 
 Ни одна из причин по отдельности не была бы фатальной (без первой агент,
@@ -70,7 +70,7 @@
 2. Добавлена настоящая файловая песочница на уровне вызова
    `claude -p`: `scripts/run-pilot-ticket.sh` генерирует
    `sandbox.filesystem.denyRead` на родительскую директорию пилота
-   (`/Users/<user>/work`) и `sandbox.filesystem.allowRead` на саму
+   (`<host-work-dir>`) и `sandbox.filesystem.allowRead` на саму
    директорию пилота, передаёт это через `--settings <файл>` (не через
    project-level `.claude/settings.json`, который часть sandbox-полей
    игнорирует) — теперь агент физически не может прочитать что-либо за
@@ -149,7 +149,7 @@ build`/`compose` для самого тикета не работал бы).
 попытке продолжить пилот тикетом 2.
 
 **Что произошло.** Копия `SYNCBOX-SPEC.md` в директории пилота
-(`/Users/<user>/work/syncbox-python/SYNCBOX-SPEC.md`) создаётся один раз —
+(`<pilot-host-dir>/SYNCBOX-SPEC.md`) создаётся один раз —
 при первом прогоне тикета 1 — и с тех пор ничем не обновлялась. Скраб
 спецификации, описанный в разделах выше, случился в два приёма: первая
 часть (убран абзац про `acceptance/reference-impl`) попала в копию
@@ -197,7 +197,7 @@ build`/`compose` для самого тикета не работал бы).
 создании проекта, а при каждом прогоне, включая `--resume`.
 
 **Верификация.** Тикет 1 и тикет 2 переиграны на свежей директории
-(`/Users/<user>/work/syncbox-python`, прежние — переименованы в
+(`<pilot-host-dir>`, прежние — переименованы в
 `syncbox-python.stale-spec-2026-08-19` и `syncbox-python.dontask-2026-08-20`,
 сохранены как улика). После каждого из новых прогонов копия
 спецификации в директории пилота побайтово идентична

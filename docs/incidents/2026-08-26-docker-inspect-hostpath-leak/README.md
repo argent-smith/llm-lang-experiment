@@ -45,9 +45,9 @@ Docker-out-of-Docker (`/var/run/docker.sock` хоста, проброшенны�
 3. `13:16:01.222` — демон хоста отвечает реальными host-side путями:
 
    ```json
-   {"Type":"bind","Source":"/Users/<user>/.docker/run/docker.sock","Destination":"/var/run/docker.sock",...}
-   {"Type":"bind","Source":"/var/folders/9m/hpx7lc791hvgdz_v0fj78sjm0000gn/T/syncbox-claude-home.ttxviT0yQb","Destination":"/home/node/.claude",...}
-   {"Type":"bind","Source":"/Users/<user>/work/llm-lang-experiment/pilot-runs-live/typescript","Destination":"/workspace","Mode":"rw",...}
+   {"Type":"bind","Source":"<host-docker-sock>","Destination":"/var/run/docker.sock",...}
+   {"Type":"bind","Source":"<claude-home-tmpdir>","Destination":"/home/node/.claude",...}
+   {"Type":"bind","Source":"<pilot-host-dir>","Destination":"/workspace","Mode":"rw",...}
    ```
 
    Агент узнаёт: имя пользователя хоста (`paul`), структуру директорий
@@ -58,7 +58,7 @@ Docker-out-of-Docker (`/var/run/docker.sock` хоста, проброшенны�
    должна была скрыть.
 4. `13:21:17.819` — единственный раз агент **использует** узнанный путь:
    подставляет его в `--data-dir` для смок-проверки:
-   `./run-server --data-dir /Users/<user>/work/llm-lang-experiment/pilot-runs-live/typescript/.smoke-data --port 8091`.
+   `./run-server --data-dir <pilot-host-dir>/.smoke-data --port 8091`.
 5. `13:21:18.846` — команда падает (`Exit 1`); в логе контейнера —
    `mkdir: cannot create directory '/Users': Permission denied`. Путь
    физически не существует внутри контейнера харнеса (примонтирован
@@ -89,7 +89,7 @@ Docker-out-of-Docker (`/var/run/docker.sock` хоста, проброшенны�
 ## Оценка воздействия
 
 - Файловый барьер не пробит: агент не мог и не пытался прочитать
-  что-либо по узнанному пути (`/Users/<user>/work/llm-lang-experiment/...`
+  что-либо по узнанному пути (`<meta-repo-host-dir>/...`
   физически не существует внутри контейнера харнеса — подтверждено
   самим фактом падения шага 4 выше).
 - Утекла строка (имя пользователя, структура директорий, имя
@@ -129,7 +129,7 @@ Docker-out-of-Docker (`/var/run/docker.sock` хоста, проброшенны�
   с нейтральным именем) — отклонено как полумера: скрывает конкретно
   строку `llm-lang-experiment`, но не общий факт, что путь раскрывает
   структуру хоста и потенциально другие узнаваемые сегменты
-  (`/Users/<user>/...`); не устраняет канал, только один конкретный
+  (`<host-path>`); не устраняет канал, только один конкретный
   текущий symptom.
 
 ## Что делаем
