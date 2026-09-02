@@ -1,0 +1,54 @@
+Внешняя проверка текущей реализации (тикеты 1-10 уже сделаны в этом же репозитории) нашла несоответствия. Нужно исправить их по существу, не трогая ничего сверх этого.
+
+Формальная проверка HTTP-поверхности сервера по схеме API — перебором мусорных и граничных значений key — нашла ответы вне контракта:
+
+- GET /blobs/{key}: сервер вернул 500, а операция в схеме объявляет только 200, 404, 400.
+  Воспроизведение:
+      curl -X GET http://<server>/blobs/%C2%92%F4%86%B9%BB%F1%B9%AD%A4%C2%BD%C3%9DN%C2%9B%C3%88D%03%0D%F3%BE%8E%BE%F1%9D%A7%8CV%C3%82qk%F1%96%B4%B5%1B
+  (это 5xx — сервер не должен падать ни на каком значении key)
+
+Ориентир — список ответов каждой операции в syncbox-openapi.yaml (в корне репозитория); ответ на любое значение key обязан быть из этого списка, 5xx недопустим ни на каком входе. Обрабатывай класс проблемы, не хардкодь конкретные байтовые последовательности из примеров. Правки допустимы только в коде реализации — файлы спецификации (SYNCBOX-SPEC.md, syncbox-openapi.yaml) не трогай, это внешний контракт.
+
+Штатные тесты (run-tests) не прошли. Последние строки:
+
+    #15 exporting layers 0.0s done
+    #15 exporting manifest sha256:b35338ec3c8ac9fc53eec81d0e2106854066707aa175e1df962dcfd23536b369 done
+    #15 exporting config sha256:fecaa8dd846454b8207b53d25aeb97d63525fac92a21fa48d9d8998d09da21b2 done
+    #15 exporting attestation manifest sha256:12d80671a650183347bd2619ef4de30106c8f3dae643fcca05bb347770645832 done
+    #15 exporting manifest list sha256:86ab07150a8e8fb34f33b99d0574a6ec9de411f100b1431bfe13e2807ca9db51 done
+    #15 naming to docker.io/library/python-server:latest done
+    #15 unpacking to docker.io/library/python-server:latest 0.0s done
+    #15 DONE 0.1s
+    
+    #16 resolving provenance for metadata file
+    #16 DONE 0.0s
+     Image python-server Built 
+     Container python-server-run-c5c6075a2710 Creating 
+     Container python-server-run-c5c6075a2710 Created 
+    ........................................................................ [ 43%]
+    ....................................F................................... [ 86%]
+    .......................                                                  [100%]
+    =================================== FAILURES ===================================
+    _______ test_unimplemented_commands_print_message_and_exit_nonzero[sync] _______
+    
+    command = 'sync'
+    tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_unimplemented_commands_pr0')
+    capsys = <_pytest.capture.CaptureFixture object at 0xffffa3eae210>
+    
+        @pytest.mark.parametrize("command", ["sync"])
+        def test_unimplemented_commands_print_message_and_exit_nonzero(command, tmp_path, capsys):
+            exit_code = main([command, str(tmp_path), "--server", "http://example.test"])
+        
+            assert exit_code != 0
+            captured = capsys.readouterr()
+            assert command in captured.err
+    >       assert "not implemented" in captured.err
+    E       assert 'not implemented' in 'syncbox: could not reach server at http://example.test: HTTPConnectionPool(host=\'example.test\', port=80): Max retri...ection(host=\'example.test\', port=80): Failed to resolve \'example.test\' ([Errno -2] Name or service not known)"))\n'
+    E        +  where 'syncbox: could not reach server at http://example.test: HTTPConnectionPool(host=\'example.test\', port=80): Max retri...ection(host=\'example.test\', port=80): Failed to resolve \'example.test\' ([Errno -2] Name or service not known)"))\n' = CaptureResult(out='', err='syncbox: could not reach server at http://example.test: HTTPConnectionPool(host=\'example.t...ction(host=\'example.test\', port=80): Failed to resolve \'example.test\' ([Errno -2] Name or service not known)"))\n').err
+    
+    tests/test_client_main.py:73: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_client_main.py::test_unimplemented_commands_print_message_and_exit_nonzero[sync]
+    1 failed, 166 passed in 14.27s
+
+После фикса добавь тесты на эти случаи и перепроверь сам — подними сервер через run-server и прогони run-tests. Не меняй ничего, что не относится к перечисленным несоответствиям.

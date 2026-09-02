@@ -224,10 +224,16 @@ check "10-client-status-is-dry-run" test_status_dry_run
 # вернуть согласованное состояние перед pull
 "$RUN_CLIENT" sync "$SRC_DIR" --server "$SERVER" >/dev/null 2>&1 || true
 
-# тикет 8: pull в чистую папку побайтово совпадает
+# тикет 8: pull в чистую папку побайтово совпадает.
+# -x '.syncbox*' — исключаем клиентское служебное состояние: sync (тикет 10)
+# ведёт локальный baseline-индекс (.syncbox-sync-state.json / -manifest.json /
+# .syncbox) внутри <dir>, исключённый из самого синка. Все четыре языковые
+# реализации независимо выбрали такое хранение (легальный паттерн, ср. .git/);
+# для сравнения содержимого пользовательских файлов оно нерелевантно, а свежая
+# pull-директория его по определению не содержит.
 test_pull() {
   "$RUN_CLIENT" pull "$PULL_DIR" --server "$SERVER" >/dev/null 2>&1 || return 1
-  diff -rq "$SRC_DIR" "$PULL_DIR" >/dev/null
+  diff -rq -x '.syncbox*' "$SRC_DIR" "$PULL_DIR" >/dev/null
 }
 check "11-client-pull-matches-source-byte-for-byte" test_pull
 

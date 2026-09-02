@@ -1,0 +1,12 @@
+services:
+  client:
+    build: .
+    entrypoint: ["node", "dist/client-index.js"]
+    # Host networking so a --server URL that resolves on the host (e.g.
+    # http://localhost:8080, as published by run-server) resolves the same
+    # way from inside this container, with no URL rewriting involved.
+    network_mode: "host"
+    volumes:
+      - "${SYNCBOX_CLIENT_DIR}:/workdir"
+    environment:
+      - SYNCBOX_SERVER
