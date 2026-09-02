@@ -9,51 +9,61 @@
 # Внешняя, ядром обеспечиваемая изоляция контейнера — единственный
 # проверенный барьер, который агент не может обойти изнутри.
 #
-# docker CLI + compose-плагин скопированы из официального docker:27-cli
-# образа (Docker-out-of-Docker: /var/run/docker.sock монтируется с
-# хоста при запуске, команды агента идут в тот же демон, что и
-# остальной пилот, контейнеры создаются как соседи, не вложенно) — не
-# apt-get install docker.io, тот тянет свою версию и не даёт compose.
+# Docker-IN-Docker, не Docker-out-of-Docker (переход 2026-09-01).
+# Раньше внутрь пробрасывался хостовый /var/run/docker.sock, и `docker
+# compose` агента шёл в тот же демон, что и весь хост. Прогон тикета 9
+# (Ruby) показал: через это агент может получить bind-mount ЛЮБОГО
+# хостового пути под каталогом file-sharing Docker Desktop — `run-client
+# status /tmp` примонтировал хостовый /private/tmp в контейнер клиента и
+# обошёл его целиком (чужие сессии Claude Code, скрэтч этого же
+# эксперимента). Демон резолвит путь bind-mount против СВОЕГО вида хоста,
+# и ремап пути внутри харнеса на это не влияет — проверено. Разбор:
+# docs/incidents/2026-09-01-dood-host-fs-reachable/.
+#
+# С DinD внутри поднимается собственный dockerd (нужен --privileged на
+# `docker run` харнеса). Его файловая система — оверлей самого контейнера
+# харнеса; хостовых /private/tmp и /Users в ней не существует, поэтому
+# `docker compose` агента физически не может их примонтировать. Бонусом
+# уходит и прежняя утечка через `docker inspect` своего же контейнера
+# (host-side путь bind-mount'а с именем мета-репозитория — см.
+# docs/incidents/2026-08-26-docker-inspect-hostpath-leak/): внутренний
+# демон про контейнер харнеса ничего не знает. `/var/lib/docker` —
+# анонимный том (VOLUME из базового образа), `--rm` сносит его вместе с
+# контейнером: демон каждого прогона пуст, чистить чужие/прошлые
+# `syncbox*`-образы больше не нужно и негде.
+#
+# Цена, принятая осознанно: (1) --privileged на том же контейнере, где
+# уже claude -p --dangerously-skip-permissions — это не расширение
+# периметра, барьер по-прежнему один (namespace-изоляция самого
+# контейнера от хоста), просто теперь замкнутый; (2) внутренний демон
+# стартует без кеша слоёв — каждый прогон заново тянет базовые образы
+# (python:3.12-slim, node:22-alpine, ruby:3.3-slim и т. п.), ~1 мин
+# инфра-времени, одинаково по языкам, отдельной статьёй в
+# timing-breakdown.
 #
 # Версия Claude Code закреплена (не @latest) — тот же принцип, что и
 # точный ID модели: дрейф версии харнеса не должен подмешиваться к
 # измеряемому эффекту языка без явного, документированного решения
-# поменять её.
+# поменять её. Базовый docker:27-dind — Alpine; nodejs/npm ставятся
+# apk из репозитория Alpine (musl-нативные, без glibc/musl-конфликта,
+# который был бы с бинарником docker из Debian-образа), su-exec —
+# сбросить root после старта dockerd (claude -p не работает под root).
+FROM docker:27-dind
 
-# `docker scout quickview` на этом образе: 18C/72H суммарно (в основном
-# транзитивные зависимости npm-пакета @anthropic-ai/claude-code и
-# Debian-пакеты базового node:22-slim, 3C/9H из них). `node:22-alpine`
-# даёt заметно меньше (1C/7H), но не проверено эмпирически: CLI-бинарник
-# docker, скопированный из docker:27-cli (Debian/glibc), может не
-# заработать на musl без статической линковки — переключать без
-# проверки нельзя (см. CLAUDE.md, «Работа со сторонними библиотеками»).
-# Осознанно принято как есть: контейнер эфемерный (--rm на каждый
-# вызов), не слушает сеть, не хранит состояние между вызовами, и
-# единственная задача — запустить доверенный CLI против примонтированной
-# директории пилота, не быть периметром обороны сам по себе (тот
-# обеспечивает факт изоляции namespace, не патч-статус пакетов внутри).
-FROM node:22-slim
-
-COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
-COPY --from=docker:27-cli /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache nodejs npm su-exec curl ca-certificates git
 
 RUN npm install -g @anthropic-ai/claude-code@2.1.238
 
-# --dangerously-skip-permissions отказывается работать под root/sudo
-# (само по себе разумное ограничение) — базовый node-образ уже даёт
-# непривилегированного пользователя node (uid 1000), используем его.
-# docker.sock, примонтированный с хоста (Docker Desktop, macOS),
-# внутри контейнера виден как root:root, rw-rw---- — не так, как
-# показывает `ls` на самом хосте (там владелец paul:staff): Docker
-# Desktop переинтерпретирует владение файлом через VM-прослойку
-# (gRPC-FUSE/VirtioFS). Значение имеет только то, что видно ИЗНУТРИ
-# контейнера — добавляем node в группу root (gid 0), не в group хоста.
-RUN usermod -aG root node
-USER node
-WORKDIR /workspace
+# dockerd обязан стартовать под root; полезная нагрузка (claude -p) — нет.
+RUN adduser -D -u 1000 node
+
+# Внутренний dockerd слушает только unix-сокет, без TLS и без TCP.
+ENV DOCKER_TLS_CERTDIR=""
+
+COPY pilot-harness-entrypoint.sh /usr/local/bin/pilot-harness-entrypoint.sh
+RUN chmod +x /usr/local/bin/pilot-harness-entrypoint.sh
+
+# ENTRYPOINT базового образа (dockerd-entrypoint.sh) переопределяется:
+# наш скрипт поднимает dockerd в фоне через него же, ждёт сокет,
+# сбрасывает привилегии и запускает переданный CMD (claude -p ...).
+ENTRYPOINT ["/usr/local/bin/pilot-harness-entrypoint.sh"]

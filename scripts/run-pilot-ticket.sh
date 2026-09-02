@@ -32,31 +32,27 @@
 # дешёвая защита на случай, если в образ харнеса когда-нибудь попадёт
 # собственный CLAUDE.md/хуки — не потому, что сейчас есть что отключать.
 #
-# Файловая изоляция контейнера не покрывает общий Docker-демон хоста:
-# агенту нужен доступ к docker-сокету для сборки/тестирования своего же
-# контейнера (Docker-out-of-Docker — /var/run/docker.sock пробрасывается
-# внутрь), а через него `docker images`/`docker ps` показывают образы и
-# контейнеры от эталонной реализации и от прошлых пилотных прогонов —
-# второй, более мягкий канал утечки (агент не читает чужой код, но
-# видит, что чужие прогоны существуют, и это само по себе достаточно,
-# чтобы повлиять на его решения). Поэтому перед каждым запуском чистим
-# все ресурсы с префиксом `syncbox` — не только чужие: если это
-# `--resume` в рамках одного тикета, свои же образы тоже будут
-# пересобраны, это принятая цена фикса, а не побочный баг.
-#
-# Тот же демон-канал раскрывает и host-side пути bind-mount'ов:
-# `docker inspect <контейнер> --format '{{json .Mounts}}'` (в т.ч. для
-# СВОЕГО ЖЕ контейнера харнеса, который агент видит через `docker ps`)
-# отдаёт реальный путь на хосте — включая имя мета-репозитория
-# `llm-lang-experiment`, ровно то, что вся эта Docker-обвязка должна
-# скрывать. Обнаружено эмпирически на первом прогоне TypeScript (тикет
-# 1, 2026-08-26) — см. docs/incidents/2026-08-26-docker-inspect-hostpath-leak/.
-# Файловый барьер это не пробивает (путь физически не существует внутри
-# контейнера, попытка использовать его падает), но имя/путь агент
-# узнаёт. Полностью закрыть без потери docker.sock нельзя — демон не
-# различает «свой» и «чужой» контейнер и не фильтрует поля ответа;
-# принято как тот же класс риска, что и `docker images`/`docker ps`
-# выше, не устранено.
+# Docker-IN-Docker (переход 2026-09-01, было Docker-out-of-Docker с
+# пробросом хостового /var/run/docker.sock). Внутри харнеса поднимается
+# собственный dockerd (см. pilot-harness-entrypoint.sh, нужен
+# --privileged на `docker run` ниже); `docker compose` агента бьёт в
+# него. Его файловая система — оверлей контейнера харнеса, хостовых
+# /private/tmp и /Users в ней нет, поэтому агент физически не может их
+# примонтировать в контейнер тикета. Это закрыло сразу три прежних
+# канала DooD:
+#   - `run-client status /tmp` -> bind-mount хостового /private/tmp
+#     (найдено на тикете 9, Ruby — docs/incidents/2026-09-01-dood-host-fs-reachable/);
+#   - `docker images`/`docker ps` показывали образы/контейнеры эталонной
+#     реализации и прошлых прогонов (агент видел, что чужие прогоны
+#     существуют);
+#   - `docker inspect` своего же контейнера харнеса отдавал host-side
+#     путь bind-mount'а с именем мета-репозитория `llm-lang-experiment`
+#     (docs/incidents/2026-08-26-docker-inspect-hostpath-leak/).
+# Внутренний демон про всё это ничего не знает: он пуст на старте
+# каждого прогона (`/var/lib/docker` — анонимный том, `--rm` сносит
+# его), не видит хостовых образов и не знает про контейнер харнеса.
+# Поэтому блок чистки хостового демона от `syncbox*`/`workspace-*` —
+# убран: чистить больше нечего и негде.
 #
 # Использование:
 #   scripts/run-pilot-ticket.sh <pilot-dir> <prompt-file> <output-prefix>
@@ -100,10 +96,11 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-# Без префикса "syncbox" намеренно: очистка Docker-демона ниже сносит
-# все образы с ссылкой "syncbox*" (код тикетов, эталонная реализация) —
-# образ харнеса, названный так же, попадал бы под собственную чистку и
-# исчезал сразу после сборки (воспроизведено эмпирически на этом хосте).
+# Имя без префикса "syncbox" — историческое: прежний блок чистки
+# хостового демона сносил всё "syncbox*", и образ харнеса, названный
+# так же, исчезал сразу после сборки. Чистки больше нет (Docker-in-
+# Docker, см. шапку), но имя оставлено как есть — на него завязаны
+# .github/workflows и docs.
 HARNESS_IMAGE="pilot-harness:latest"
 HARNESS_DOCKERFILE="$REPO_ROOT/scripts/pilot-harness.Dockerfile"
 # Собирается на каждый вызов, без ручной проверки "нужна ли пересборка"
@@ -126,48 +123,13 @@ HARNESS_DOCKERFILE="$REPO_ROOT/scripts/pilot-harness.Dockerfile"
 # сборок provenance/SBOM не несут пользы.
 docker build --provenance=false --sbom=false -t "$HARNESS_IMAGE" -f "$HARNESS_DOCKERFILE" "$REPO_ROOT/scripts" >&2
 
-# Путь к docker-сокету через `docker context inspect`, не хардкод
-# /var/run/docker.sock — на Docker Desktop/macOS реальный сокет лежит
-# в ~/.docker/run/docker.sock, /var/run/docker.sock там просто симлинк
-# на хосте (внутри контейнера его нет). На Linux-хосте (в т.ч. CI)
-# тот же вызов вернёт unix:///var/run/docker.sock — воспроизводимо без
-# правки скрипта под ОС.
-DOCKER_SOCK="$(docker context inspect -f '{{.Endpoints.docker.Host}}' | sed 's#^unix://##')"
-
-# Чистка общего Docker-демона хоста от всего, что несёт префикс
-# "syncbox" (образы, контейнеры, сети) — до эталонной реализации и
-# прошлых пилотных прогонов включительно. Плюс отдельно —
-# "^workspace-"/"^workspace_": рабочая директория внутри контейнера
-# харнеса всегда /workspace (см. WORKDIR в pilot-harness.Dockerfile),
-# поэтому `docker compose` без явного `name:` в файле проекта
-# детерминированно берёт "workspace" как имя проекта — контейнеры вида
-# `workspace-<сервис>-run-<hash>` не совпадают с фильтром "syncbox" и
-# переживают вызов, если сессия оборвалась до штатного `compose down`
-# (найдено эмпирически: сервер, поднятый `run-server` внутри тикета,
-# пережил обрыв по рейт-лимиту 429 и следующие два прогона, пока не
-# найден при ручной проверке). `^` — привязка к началу имени, чтобы не
-# зацепить случайный контейнер стороннего проекта разработчика с
-# "workspace" где-то в середине имени. `|| true` на каждом шаге:
-# пустой список — нормальный случай, не ошибка.
-docker ps -a --filter "name=syncbox" --filter "name=^workspace-" --format '{{.ID}}' | xargs -r docker rm -f >/dev/null 2>&1 || true
-docker images --filter "reference=syncbox*" --format '{{.ID}}' | xargs -r docker rmi -f >/dev/null 2>&1 || true
-docker network ls --filter "name=syncbox" --filter "name=^workspace_" --format '{{.ID}}' | xargs -r docker network rm >/dev/null 2>&1 || true
-
-# Проверка, что чистка реально сработала — тем же духом, что
-# failIfUnavailable для файловой песочницы: молчаливый недобитый
-# остаток (`|| true` выше глотает и настоящие ошибки docker, не
-# только "пустой список") оставлял бы более мягкий канал утечки не
-# закрытым, а просто незамеченным.
-leftover_containers="$(docker ps -a --filter "name=syncbox" --filter "name=^workspace-" --format '{{.Names}}')"
-leftover_images="$(docker images --filter "reference=syncbox*" --format '{{.Repository}}:{{.Tag}}')"
-leftover_networks="$(docker network ls --filter "name=syncbox" --filter "name=^workspace_" --format '{{.Name}}')"
-if [ -n "$leftover_containers$leftover_images$leftover_networks" ]; then
-  echo "run-pilot-ticket.sh: очистка Docker-демона от ресурсов 'syncbox' не удалась, остались:" >&2
-  [ -n "$leftover_containers" ] && echo "  контейнеры: $leftover_containers" >&2
-  [ -n "$leftover_images" ] && echo "  образы: $leftover_images" >&2
-  [ -n "$leftover_networks" ] && echo "  сети: $leftover_networks" >&2
-  exit 1
-fi
+# Прежний блок чистки хостового Docker-демона от ресурсов `syncbox*` /
+# `workspace-*` (эталонная реализация, прошлые прогоны) убран вместе с
+# переходом на Docker-in-Docker: `docker compose` агента больше не
+# ходит в хостовый демон, а внутренний демон харнеса пуст на старте
+# каждого прогона (`/var/lib/docker` — анонимный том, `--rm` его сносит).
+# Чистить нечего и негде. См. шапку файла и
+# docs/incidents/2026-09-01-dood-host-fs-reachable/.
 
 # --permission-mode dontAsk молча (и, по наблюдению, непредсказуемо)
 # отклоняет Edit/Write без TTY — не покрытые allow-правилом вызовы
@@ -179,16 +141,19 @@ fi
 # уже существующей границы безопасности, теперь обеспечиваемой
 # контейнером (см. заголовок файла), не вместо неё: даже с полностью
 # снятыми внутренними проверками агент физически не видит ничего, кроме
-# /workspace и docker-сокета.
+# /workspace и своего же вложенного dockerd (у которого хостовой ФС
+# нет).
 #
-# -v "$PILOT_DIR:/workspace:rw" — единственная примонтированная
-# директория с кодом; -v "$DOCKER_SOCK:/var/run/docker.sock" —
-# Docker-out-of-Docker для сборки/тестирования кода тикета в соседнем
-# контейнере (см. «Docker-изоляция» в docs/SYNCBOX-SPEC.md); --env-file
-# передаёт CLAUDE_CODE_OAUTH_TOKEN, не ANTHROPIC_API_KEY (см. CLAUDE.md,
-# раздел «Метод» — проект намеренно на OAuth); --rm — контейнер харнеса
-# не должен пережить вызов, в отличие от контейнера кода тикета внутри
-# него, который отдельно чистится блоком выше на СЛЕДУЮЩЕМ вызове.
+# -v "$PILOT_DIR:/workspace:rw" — единственная примонтированная с хоста
+# директория с кодом; --privileged нужен вложенному dockerd (см.
+# pilot-harness-entrypoint.sh; Docker-изоляция кода тикета — «Docker-
+# изоляция» в docs/SYNCBOX-SPEC.md, теперь через внутренний демон, не
+# хостовый сокет); -v /var/lib/docker — анонимный том под внутренний
+# демон (иначе overlay2 поверх overlay2 в VM Docker Desktop не
+# инициализируется), `--rm` сносит его вместе с контейнером, поэтому
+# демон каждого прогона пуст; --env-file передаёт CLAUDE_CODE_OAUTH_TOKEN,
+# не ANTHROPIC_API_KEY (см. CLAUDE.md, раздел «Метод» — проект намеренно
+# на OAuth); --rm — контейнер харнеса не должен пережить вызов.
 #
 # --effort xhigh — тот же принцип фиксации, что и точный ID модели
 # (CLAUDE.md, раздел «Не делать»): без явного флага харнесс полагался
@@ -230,8 +195,9 @@ trap 'rm -rf "$CLAUDE_HOME_DIR"' EXIT
 # не блокируют архивацию.
 CLAUDE_EXIT=0
 docker run --rm -i \
+  --privileged \
   -v "$PILOT_DIR:/workspace:rw" \
-  -v "$DOCKER_SOCK:/var/run/docker.sock" \
+  -v /var/lib/docker \
   -v "$CLAUDE_HOME_DIR:/home/node/.claude" \
   --env-file "$ENV_FILE" \
   "$HARNESS_IMAGE" \

@@ -32,13 +32,21 @@ Code security (bandit/gosec) пробовали и убрали 2026-08-20 — �
 `scripts/pilot-harness.env` с `CLAUDE_CODE_OAUTH_TOKEN` (шаблон и
 инструкция получения — `scripts/pilot-harness.env.example`; сам файл
 гитигнорится, реальный токен в него не коммитится). Образ харнеса
-(`scripts/pilot-harness.Dockerfile`, тег `pilot-harness:latest`)
-собирается автоматически при первом вызове и пересобирается, если
-Dockerfile правился после последней сборки — руками собирать не нужно.
+(`scripts/pilot-harness.Dockerfile` + `scripts/pilot-harness-entrypoint.sh`,
+тег `pilot-harness:latest`) собирается автоматически при каждом вызове
+(кеш слоёв BuildKit делает это дёшево) — руками собирать не нужно.
 Сам вызов `claude -p` идёт не на хосте, а внутри этого контейнера, с
-единственной примонтированной директорией пилота — почему это
+единственной примонтированной с хоста директорией пилота — почему это
 обязательно, а не просто внутренние настройки Claude Code, см.
 [docs/incidents/2026-08-21-write-tool-sandbox-escape/](incidents/2026-08-21-write-tool-sandbox-escape/README.md).
+С 2026-09-01 контейнер харнеса запускается с `--privileged` и поднимает
+внутри собственный `dockerd` (Docker-in-Docker): `docker compose` кода
+тикета идёт в этот внутренний демон, а не в хостовый, у которого агент
+через проброшенный сокет мог примонтировать произвольный хостовый путь
+([docs/incidents/2026-09-01-dood-host-fs-reachable/](incidents/2026-09-01-dood-host-fs-reachable/README.md)).
+Внутренний демон пуст на старте каждого прогона — базовые образы
+(`python:3.12-slim` и т. п.) тянутся заново, ~1 мин инфра-времени на
+вызов.
 
 Директории пилотных проектов (`PILOT_DIR`) конвенционально живут в
 `pilot-runs-live/<язык>/` в корне этого репозитория (гитигнорится) — не
@@ -108,6 +116,18 @@ Desktop, не в нашем коде, так что при подозрении 
 
 Docker Desktop не запущен. На macOS: `open -a Docker`, подождать, пока
 `docker info` не начнёт отвечать без ошибки.
+
+### `pilot-harness-entrypoint: вложенный dockerd не поднялся за 60 с`
+
+Docker-in-Docker внутри контейнера харнеса не стартовал. Обычные
+причины: контейнер запущен без `--privileged` (в `run-pilot-ticket.sh`
+он есть — проверить, если запускался руками); в VM Docker Desktop не
+инициализировался overlay2 поверх overlay2 (в скрипте под
+`/var/lib/docker` заведён анонимный том — проверить, что флаг
+`-v /var/lib/docker` на месте); лог самого демона печатается в stderr
+прогона следом за сообщением. Быстрая проверка образа отдельно:
+`docker run --rm --privileged -v /var/lib/docker --entrypoint
+/usr/local/bin/pilot-harness-entrypoint.sh pilot-harness:latest docker info`.
 
 ### `Unable to find image 'pilot-harness:latest' locally` сразу после сборки
 
