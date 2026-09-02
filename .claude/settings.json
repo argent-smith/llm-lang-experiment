@@ -8,7 +8,7 @@
   "autoMode": {
     "allow": [
       "$defaults",
-      "Running scripts/run-pilot-ticket.sh in this repository, including in the background. This script wraps a single `claude -p --model claude-sonnet-5 --safe-mode --dangerously-skip-permissions --output-format json` call against a pilot project directory, executed inside a container-isolated harness (Docker-in-Docker; only the pilot directory is mounted, as /workspace). The --dangerously-skip-permissions flag applies only to that nested, container-isolated pilot agent — it does not affect or bypass any permission check for this outer session. The user explicitly reviewed and approved this exact flag choice for the experiment described in CLAUDE.md."
+      "Running scripts/run-pilot-ticket.sh in this repository (/Users/<user>/work/llm-lang-experiment), including in the background. This script wraps a single `claude -p --model claude-sonnet-5 --safe-mode --settings <generated-temp-file> --dangerously-skip-permissions --output-format json` call against a pilot project directory under /Users/<user>/work/syncbox-*. The --dangerously-skip-permissions flag applies only to that nested, already OS-sandboxed pilot agent (sandbox.filesystem.denyRead/allowRead confines it to its own pilot directory, sandbox.failIfUnavailable:true) — it does not affect or bypass any permission check for this outer session. The user explicitly reviewed and approved this exact flag choice for the experiment described in CLAUDE.md."
     ]
   },
   "hooks": {
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_response.filePath // .tool_input.file_path' | { read -r f; python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/align_md_tables.py\" \"$f\"; } 2>/dev/null || true",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path' | { read -r f; python3 \"/Users/<user>/work/llm-lang-experiment/.claude/hooks/align_md_tables.py\" \"$f\"; } 2>/dev/null || true",
             "statusMessage": "Выравниваю markdown-таблицы..."
           }
         ]
