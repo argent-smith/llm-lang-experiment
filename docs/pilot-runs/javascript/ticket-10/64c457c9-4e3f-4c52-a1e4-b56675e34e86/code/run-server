@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Launches the Syncbox HTTP server in the current process (no daemonizing),
+# inside a Docker container via `docker compose run`, per SYNCBOX-SPEC.md.
+#
+# Usage: run-server --data-dir <path> --port <n>
+# --data-dir / --port can also come from SYNCBOX_DATA_DIR / SYNCBOX_PORT.
+set -euo pipefail
+
+DATA_DIR="${SYNCBOX_DATA_DIR:-}"
+PORT="${SYNCBOX_PORT:-8080}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --data-dir)
+      DATA_DIR="${2:?--data-dir requires a value}"
+      shift 2
+      ;;
+    --port)
+      PORT="${2:?--port requires a value}"
+      shift 2
+      ;;
+    *)
+      echo "run-server: unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$DATA_DIR" ]]; then
+  echo "run-server: --data-dir is required (or set SYNCBOX_DATA_DIR)" >&2
+  exit 1
+fi
+
+mkdir -p "$DATA_DIR"
+DATA_DIR="$(cd "$DATA_DIR" && pwd)"
+
+export SYNCBOX_DATA_DIR_HOST="$DATA_DIR"
+export SYNCBOX_PORT="$PORT"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+
+exec docker compose run --rm --build --service-ports server

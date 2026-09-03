@@ -255,24 +255,47 @@ cp "${OUTPUT_PREFIX}.json" "$ARCHIVE_DIR/result.json"
 printf '{"container_wall_ms": %s, "claude_exit": %s}\n' \
   "$CONTAINER_WALL_MS" "$CLAUDE_EXIT" > "$ARCHIVE_DIR/harness-timing.json"
 
-# Полный JSONL-транскрипт сессии. Приоритет — копия, которую
-# pilot-harness-entrypoint.sh кладёт в /workspace (= $PILOT_DIR на хосте)
-# ПЕРЕД teardown контейнера: одноразовый $CLAUDE_HOME_DIR под DinD не
-# всегда успевает сброситься на bind-mount, из-за чего архивный
-# транскрипт обрезался (тикет 10 — ~12% времени прогона, без
-# docker-команд агента; docs/incidents/2026-09-02-dind-timing-broken/).
-# Fallback — прежний путь через $CLAUDE_HOME_DIR (архивы до этого фикса,
-# и на случай, если entrypoint не успел).
+# Полный JSONL-транскрипт сессии. Два источника, оба bind-mount'а:
+#  1) $CLAUDE_HOME_DIR/projects/<slug>/<uuid>.jsonl — сюда claude пишет
+#     транскрипт всю сессию. Читаем ПОСЛЕ возврата `docker run`: контейнер
+#     уже снесён, virtiofs-writeback форсирован teardown'ом, данные на
+#     хосте целиком.
+#  2) $PILOT_DIR/.harness-session-transcript.jsonl — копию сюда кладёт
+#     pilot-harness-entrypoint.sh ПЕРЕД teardown. Fallback на случай,
+#     если (1) обрезан.
+# Проверяем валидность каждого кандидата: непустой + первая непустая
+# строка парсится как JSON. Иначе virtiofs на macOS может отдать
+# NUL-заполненный файл правильного размера, если запись не сброшена до
+# `--rm` teardown — так entrypoint-копия вышла 516 КБ нулей на
+# переигровке тикета 10 (2026-09-03, docs/incidents/2026-09-03-dind-bash-missing/).
+_valid_transcript() {
+  [ -s "$1" ] || return 1
+  head -c 4096 "$1" | tr -d '\0' | grep -q '[^[:space:]]' || return 1
+  python3 - "$1" <<'PY' 2>/dev/null
+import json, sys
+for line in open(sys.argv[1], errors="replace"):
+    line = line.strip("\x00 \t\r\n")
+    if not line:
+        continue
+    json.loads(line)
+    sys.exit(0)
+sys.exit(1)
+PY
+}
 TRANSCRIPT=""
-if [ -f "$PILOT_DIR/.harness-session-transcript.jsonl" ]; then
-  TRANSCRIPT="$PILOT_DIR/.harness-session-transcript.jsonl"
-else
-  TRANSCRIPT="$(find "$CLAUDE_HOME_DIR/projects" -name '*.jsonl' 2>/dev/null | head -1)"
-fi
-if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+_home_tr="$(find "$CLAUDE_HOME_DIR/projects" -name '*.jsonl' 2>/dev/null | head -1)"
+_ws_tr="$PILOT_DIR/.harness-session-transcript.jsonl"
+for _cand in "$_home_tr" "$_ws_tr"; do
+  if [ -n "$_cand" ] && _valid_transcript "$_cand"; then
+    TRANSCRIPT="$_cand"
+    break
+  fi
+done
+if [ -n "$TRANSCRIPT" ]; then
   cp "$TRANSCRIPT" "$ARCHIVE_DIR/transcript.jsonl"
+  echo "run-pilot-ticket.sh: транскрипт из ${TRANSCRIPT#"$REPO_ROOT/"}" >&2
 else
-  echo "run-pilot-ticket.sh: транскрипт сессии не найден ни в /workspace, ни в $CLAUDE_HOME_DIR/projects — архив без transcript.jsonl" >&2
+  echo "run-pilot-ticket.sh: ВАЛИДНЫЙ транскрипт не найден (проверены \$CLAUDE_HOME_DIR/projects и /workspace-копия) — архив без transcript.jsonl" >&2
 fi
 rm -f "$PILOT_DIR/.harness-session-transcript.jsonl"
 

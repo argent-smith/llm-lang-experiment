@@ -224,11 +224,30 @@ def analyze(archive_dir: Path, verbose=False):
     infra_ms = 0.0
     tool_wall_ms = 0.0  # прямая сумма wall-time всех пар tool_use/tool_result
     transcript_span_ms = 0.0
+    bash_tool_use_count = 0
+    shell_error_in_transcript = False
     events = []
 
+    transcript_unparseable = False
+    records = []
     if transcript_path.exists():
-        lines = transcript_path.read_text().splitlines()
-        records = [json.loads(l) for l in lines if l.strip()]
+        raw = transcript_path.read_text(errors="replace")
+        # NUL-заполненный файл: virtiofs на macOS отдаёт размер, но не
+        # данные, если запись в bind-mount не сброшена до teardown --rm
+        # (переигровка тикета 10, 2026-09-03 — 516 КБ нулей). Парсим
+        # построчно, пропуская мусор; если не набралось ни одной записи —
+        # считаем транскрипт отсутствующим (ветка warning ниже).
+        for l in raw.splitlines():
+            l = l.strip("\x00 \t\r\n")
+            if not l:
+                continue
+            try:
+                records.append(json.loads(l))
+            except ValueError:
+                continue
+        if not records:
+            transcript_unparseable = True
+        shell_error_in_transcript = "No suitable shell found" in raw
         _all_ts = [parse_ts(r["timestamp"]) for r in records if r.get("timestamp")]
         if len(_all_ts) >= 2:
             transcript_span_ms = (max(_all_ts) - min(_all_ts)).total_seconds() * 1000
@@ -245,6 +264,8 @@ def analyze(archive_dir: Path, verbose=False):
                 if not isinstance(c, dict):
                     continue
                 if c.get("type") == "tool_use":
+                    if c.get("name") == "Bash":
+                        bash_tool_use_count += 1
                     pending[c.get("id")] = {
                         "name": c.get("name"),
                         "input": c.get("input", {}),
@@ -335,6 +356,12 @@ def analyze(archive_dir: Path, verbose=False):
     # В обоих случаях tool_wall_ms/infra/work по этому архиву недостоверны.
     if not transcript_path.exists():
         breakdown["warning"] = "нет transcript.jsonl — infra/work не посчитаны, model_ms = wall_ms."
+    elif transcript_unparseable:
+        breakdown["warning"] = (
+            "transcript.jsonl нечитаем (ни одной валидной JSON-записи — вероятно, "
+            "NUL-заполнен при teardown DinD-контейнера) — infra/work не посчитаны, "
+            "model_ms = wall_ms."
+        )
     elif transcript_span_ms and transcript_span_ms < 0.7 * wall_ms:
         breakdown["warning"] = (
             f"транскрипт охватывает лишь {transcript_span_ms / wall_ms:.0%} времени прогона — "
@@ -348,18 +375,26 @@ def analyze(archive_dir: Path, verbose=False):
             "container_wall_ms в архиве нет (сделан до почина 2026-09-02); "
             "wall_ms и разбивка недостоверны."
         )
-    elif infra_ms == 0 and tool_wall_ms < 20_000 and wall_ms > 120_000:
-        # Полноразмерный тикет (>2 мин), но агент не выполнил НИ ОДНОЙ
-        # build/test-команды: infra_ms=0 и почти нулевой tool_wall_ms при
-        # длинном прогоне. Транскрипт при этом полный (иначе сработал бы
-        # warning выше), поэтому скрипт молча отдаёт уверенно неверные
-        # числа — model_ms поглощает весь прогон. Типичная причина —
-        # инструмент Bash агента был недоступен (нет bash в образе
-        # харнеса, docs/incidents/2026-09-03-dind-bash-missing/).
+    elif wall_ms > 120_000 and (shell_error_in_transcript or bash_tool_use_count == 0):
+        # Полноразмерный тикет (>2 мин), но агент не запустил НИ ОДНОГО
+        # Bash-вызова (или в транскрипте есть «No suitable shell found») —
+        # значит не гонял ни сборку, ни тесты, а infra/work/model
+        # посчитаны по пустому набору инструментальных пар и недостоверны
+        # (model_ms поглощает весь прогон). Типичная причина — инструмент
+        # Bash агента был недоступен (нет bash в образе харнеса,
+        # docs/incidents/2026-09-03-dind-bash-missing/). Порог по времени
+        # тут НЕ используется: эффективный прогон (много Read, сжатый код,
+        # пара быстрых проверок) может иметь < 20 с tool-времени и всё
+        # равно быть валидным — так ложно срабатывало на TypeScript,
+        # переигровка тикета 10.
+        why = (
+            "в транскрипте есть «No suitable shell found»"
+            if shell_error_in_transcript
+            else "ни одного Bash-вызова в транскрипте"
+        )
         breakdown["warning"] = (
-            f"агент не выполнил ни одной build/test-команды на полноразмерном тикете "
-            f"(tool_wall_ms={round(tool_wall_ms)} мс, infra_ms=0, wall_ms={round(wall_ms)} мс) — "
-            "infra/work/model недостоверны; вероятно, инструмент Bash агента был недоступен "
+            f"агент не выполнил build/test-команд на полноразмерном тикете ({why}) — "
+            f"infra/work/model недостоверны; вероятно, инструмент Bash агента был недоступен "
             "(docs/incidents/2026-09-03-dind-bash-missing/)."
         )
     if duration_api_ms > wall_ms:
