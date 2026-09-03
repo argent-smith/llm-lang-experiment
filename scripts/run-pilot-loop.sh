@@ -96,6 +96,24 @@ while [ "$iter" -le "$MAX_ITERS" ]; do
     break
   fi
 
+  # Харнесс-инвариант: инструмент Bash агента жив. «No suitable shell
+  # found» в транскрипте = образ харнеса без bash (регрессия перехода на
+  # Alpine, docs/incidents/2026-09-03-dind-bash-missing/): агент писал код
+  # вслепую через Read/Write/Edit, не гонял ни сборку, ни тесты. host-side
+  # гейты этого не ловят (проверяют код тикета своими бинарями), поэтому
+  # ловим здесь и НЕ даём итерации зачесться. Это не «инфра-фейл» выше:
+  # claude_rc=0, is_error=false — прогон формально успешен.
+  _wtr="$PILOT_DIR/.harness-session-transcript.jsonl"
+  _atr="$REPO_ROOT/docs/pilot-runs/$(basename "$PILOT_DIR" | sed 's/^syncbox-//')/${STEM}/${session}/transcript.jsonl"
+  if grep -q "No suitable shell found" "$ipfx.json" 2>/dev/null \
+     || { [ -f "$_wtr" ] && grep -q "No suitable shell found" "$_wtr"; } \
+     || { [ -f "$_atr" ] && grep -q "No suitable shell found" "$_atr"; }; then
+    outcome="сдался (харнесс неисправен: инструмент Bash агента недоступен — «No suitable shell found»; docs/incidents/2026-09-03-dind-bash-missing/)"
+    ITER_RECORDS="${ITER_RECORDS}${ITER_RECORDS:+,}${rec}, \"gates\": null, \"harness_invalid\": true, \"note\": \"agent Bash tool dead — в образе харнеса нет bash; итерация недействительна\"}"
+    echo "run-pilot-loop.sh: $outcome" >&2
+    break
+  fi
+
   # Агент правил внешний контракт (копии SYNCBOX-SPEC.md / syncbox-openapi.yaml
   # в директории пилота — одноразовые, run-pilot-ticket.sh перезаписывает их из
   # docs/ на каждый вызов, гейт проверяет каноническую схему). Это сигнал, что

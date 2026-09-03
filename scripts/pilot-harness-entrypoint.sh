@@ -20,6 +20,19 @@
 # инфра/работу (см. docs/incidents/2026-09-02-dind-timing-broken/).
 set -eu
 
+# Жёсткая проверка: в образе харнеса должен быть bash. Детектор shell в
+# claude-code принимает только реальный bash/zsh — без него инструмент
+# Bash агента молча нерабочий («No suitable shell found»), а прогон при
+# этом доходит до конца и логируется «сошлось» (host-side гейты гоняют
+# код тикета своими бинарями, дохлый инструмент агента им не виден).
+# Именно так регрессия перехода на Alpine прожила тикеты 10+ незамеченной
+# — docs/incidents/2026-09-03-dind-bash-missing/. Ставим до trap EXIT,
+# чтобы этот выход не дёргал _finish (транскрипта ещё нет).
+command -v bash >/dev/null 2>&1 || {
+  echo "pilot-harness-entrypoint: FATAL — в образе харнеса нет bash, инструмент Bash агента работать не будет" >&2
+  exit 1
+}
+
 # dockerd-entrypoint.sh из базового docker:27-dind делает
 # iptables/cgroups/выбор storage-драйвера и стартует dockerd только если
 # первый аргумент — dockerd (иначе уходит в клиентский режим и демон не
@@ -42,7 +55,7 @@ while ! docker version >/dev/null 2>&1; do
 done
 
 # Предзапечённые базовые образы (python:3.12-slim, node:22-alpine,
-# ruby:3.3-slim, alpine — см. scripts/build-base-images-tar.sh). Внутренний
+# ruby:3.3-slim, alpine:3.20 — см. scripts/build-base-images-tar.sh). Внутренний
 # демон DinD стартует с пустым /var/lib/docker (анонимный том, --rm его
 # сносит — так закрыт канал утечки через `docker images`), поэтому без
 # предзагрузки `docker compose build` кода тикета каждый раз тянет базу с
@@ -63,7 +76,12 @@ chmod 666 /var/run/docker.sock
 
 # su-exec не наследует HOME пользователя — claude ищет ~/.claude по
 # $HOME, туда же примонтирована одноразовая директория транскрипта.
+# SHELL/USER/LOGNAME su-exec тоже не выставляет (проверено: `su-exec node
+# env` печатает только HOME/PATH/PWD/HOSTNAME/SHLVL и DOCKER_*): SHELL
+# нужен подпроцессам агента, USER/LOGNAME — ticket-side git под
+# bind-mount'ом /workspace с чужим uid.
 export HOME=/home/node
+export SHELL=/bin/bash USER=node LOGNAME=node
 
 # Пост-обработка (копия транскрипта на надёжный bind-mount + sync до
 # teardown) — через EXIT-trap, НЕ через бэкграунд `&`: асинхронная

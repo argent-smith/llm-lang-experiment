@@ -348,6 +348,20 @@ def analyze(archive_dir: Path, verbose=False):
             "container_wall_ms в архиве нет (сделан до почина 2026-09-02); "
             "wall_ms и разбивка недостоверны."
         )
+    elif infra_ms == 0 and tool_wall_ms < 20_000 and wall_ms > 120_000:
+        # Полноразмерный тикет (>2 мин), но агент не выполнил НИ ОДНОЙ
+        # build/test-команды: infra_ms=0 и почти нулевой tool_wall_ms при
+        # длинном прогоне. Транскрипт при этом полный (иначе сработал бы
+        # warning выше), поэтому скрипт молча отдаёт уверенно неверные
+        # числа — model_ms поглощает весь прогон. Типичная причина —
+        # инструмент Bash агента был недоступен (нет bash в образе
+        # харнеса, docs/incidents/2026-09-03-dind-bash-missing/).
+        breakdown["warning"] = (
+            f"агент не выполнил ни одной build/test-команды на полноразмерном тикете "
+            f"(tool_wall_ms={round(tool_wall_ms)} мс, infra_ms=0, wall_ms={round(wall_ms)} мс) — "
+            "infra/work/model недостоверны; вероятно, инструмент Bash агента был недоступен "
+            "(docs/incidents/2026-09-03-dind-bash-missing/)."
+        )
     if duration_api_ms > wall_ms:
         breakdown["note_duration_api"] = (
             f"duration_api_ms ({duration_api_ms} мс) > wall_ms ({round(wall_ms)} мс): "
