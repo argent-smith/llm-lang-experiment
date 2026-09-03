@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Runs the implementation's own test suite in Docker (never directly on the
+# host), per SYNCBOX-SPEC.md. Server and client suites both; exit non-zero
+# if either fails. Test files are not copied into the service images, so the
+# suites run in a throwaway node container with the sources mounted.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+rc=0
+# --test-force-exit: node --test otherwise hangs if a test leaves an HTTP
+# server / handle open (the server suite spins up real servers).
+echo "== server tests ==" >&2
+docker run --rm -v "$root/server:/app" -w /app node:22-alpine node --test --test-force-exit || rc=1
+echo "== client tests ==" >&2
+docker run --rm -v "$root/client:/app" -w /app node:22-alpine node --test --test-force-exit || rc=1
+exit "$rc"
