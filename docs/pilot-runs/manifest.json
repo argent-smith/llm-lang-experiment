@@ -6,7 +6,7 @@
   "languages": {
     "python": {
       "in_talk": true,
-      "canonical_ticket": "10",
+      "canonical_ticket": "11",
       "tickets": {
         "1": "docs/pilot-runs/python/ticket-1/81c45f42-109c-4151-808e-a47905380dc5",
         "2": "docs/pilot-runs/python/ticket-2/18b1ded8-4a6b-4b3c-b175-ea6e26e4b6e3",
@@ -19,12 +19,13 @@
         "12-readside": "docs/pilot-runs/python/ticket-12-readside/549ffd1e-9656-49e9-a9dd-8bad49279cb2",
         "8": "docs/pilot-runs/python/ticket-8/0e202864-b2ae-4194-8929-e191e507ede6",
         "9": "docs/pilot-runs/python/ticket-9/53e0dd58-501f-4d44-a5ca-20cba93a95eb",
-        "10": "docs/pilot-runs/python/ticket-10/73bad73f-cd51-4b34-b280-bc92b17aee04"
+        "10": "docs/pilot-runs/python/ticket-10/73bad73f-cd51-4b34-b280-bc92b17aee04",
+        "11": "docs/pilot-runs/python/ticket-11/e0c6d518-5991-4408-8b44-f3bba21ebfef"
       }
     },
     "javascript": {
       "in_talk": true,
-      "canonical_ticket": "10",
+      "canonical_ticket": "11",
       "tickets": {
         "1": "docs/pilot-runs/javascript/ticket-1/c7b65400-f333-42fd-90b2-c1515e1afd17",
         "2": "docs/pilot-runs/javascript/ticket-2/a7d571ea-0040-4194-9711-774c2bafc05b",
@@ -37,12 +38,13 @@
         "12-readside": "docs/pilot-runs/javascript/ticket-12-readside/a1ef7c17-d713-4c32-9a1b-5755bdf776eb",
         "8": "docs/pilot-runs/javascript/ticket-8/527f02ea-6b02-4d6f-aa9a-1c2c31da061a",
         "9": "docs/pilot-runs/javascript/ticket-9/e3bad61a-d2eb-4072-87c8-dc710286fcc8",
-        "10": "docs/pilot-runs/javascript/ticket-10/64c457c9-4e3f-4c52-a1e4-b56675e34e86"
+        "10": "docs/pilot-runs/javascript/ticket-10/64c457c9-4e3f-4c52-a1e4-b56675e34e86",
+        "11": "docs/pilot-runs/javascript/ticket-11/16745ed0-3c63-4eec-972f-18434b312227"
       }
     },
     "typescript": {
       "in_talk": true,
-      "canonical_ticket": "10",
+      "canonical_ticket": "11",
       "tickets": {
         "1": "docs/pilot-runs/typescript/ticket-1/3035088c-d307-4250-8b38-9f1615e1d464",
         "2": "docs/pilot-runs/typescript/ticket-2/10a838ac-4274-4023-9419-0e72c440e729",
@@ -55,12 +57,13 @@
         "12-readside": "docs/pilot-runs/typescript/ticket-12-readside/f64793d7-7ac1-4f31-ad71-30e376f6f8b9",
         "8": "docs/pilot-runs/typescript/ticket-8/860007dc-5b80-4db7-9ae0-75e766f9d969",
         "9": "docs/pilot-runs/typescript/ticket-9/87594dfa-45b9-4304-ba81-d4ef31a58c3d",
-        "10": "docs/pilot-runs/typescript/ticket-10/cc293e96-dfcf-4708-99f2-04d10d926fb2"
+        "10": "docs/pilot-runs/typescript/ticket-10/cc293e96-dfcf-4708-99f2-04d10d926fb2",
+        "11": "docs/pilot-runs/typescript/ticket-11/1636a2b9-a7a0-4c9b-800a-e533c9199aa9"
       }
     },
     "ruby": {
       "in_talk": true,
-      "canonical_ticket": "10",
+      "canonical_ticket": "11",
       "tickets": {
         "1": "docs/pilot-runs/ruby/ticket-1/402b4d1c-ac49-4cec-8133-a5e5fa1167a3",
         "2": "docs/pilot-runs/ruby/ticket-2/9062df84-d7d3-4e94-b3f2-2afc6e880502",
@@ -72,7 +75,8 @@
         "12-readside": "docs/pilot-runs/ruby/ticket-12-readside/a0e28dd9-86bf-40fa-bff7-673b91c9a857",
         "8": "docs/pilot-runs/ruby/ticket-8/0d5002dd-ef24-4624-adb7-069b8b681b3a",
         "9": "docs/pilot-runs/ruby/ticket-9/8aeb05b0-c549-4032-90e9-30217b600d91",
-        "10": "docs/pilot-runs/ruby/ticket-10/239606a6-52d6-4917-a379-d1f68a070a6f"
+        "10": "docs/pilot-runs/ruby/ticket-10/239606a6-52d6-4917-a379-d1f68a070a6f",
+        "11": "docs/pilot-runs/ruby/ticket-11/d35c4e4c-74a5-408a-998a-1fce7ac0481a"
       }
     },
     "go": {

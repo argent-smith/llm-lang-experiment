@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Runs the implementation's own test suite in Docker (never directly on the
+# host), per SYNCBOX-SPEC.md. The service image already builds test/ and
+# installs deps; SYNCBOX_DATA_DIR is set to a dummy only so `docker compose`
+# can interpolate the server service's volume line.
+set -euo pipefail
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export SYNCBOX_DATA_DIR="${SYNCBOX_DATA_DIR:-/tmp/syncbox-unused}"
+docker compose build server >&2
+exec docker compose run --rm --no-deps -T --entrypoint npm server test
