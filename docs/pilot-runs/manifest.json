@@ -1,12 +1,12 @@
 {
   "_comment": "Канонический принятый снапшот пилота на язык на тикет. Путь указывает на docs/pilot-runs/<lang>/ticket-<N>/<session_id>/; запускаемая реализация — в его подкаталоге code/ (самодостаточен: docker-compose.yml, Dockerfile, run-server/run-client/run-tests). canonical_ticket — снапшот, который .github/workflows/pilot-gates.yml гоняет через smoke+contract на Linux. in_talk отделяет 4 языка RubyRussia 2026 от 3 языков про запас (см. CLAUDE.md, «Полигон»).",
-  "_ticket_10_invalidated": "2026-09-03: канонические прогоны тикета 10 для python/js/ts/ruby (пути в tickets['10']) собраны агентом с мёртвым инструментом Bash — образ харнеса (Alpine) был без bash (docs/incidents/2026-09-03-dind-bash-missing/). canonical_ticket откачен на '9' до переигровки тикета 10 на починенном харнессе (ветка fix-dind-shell). Пути tickets['10'] оставлены как ссылка на недействительные прогоны.",
+  "_ticket_10_invalidated": "2026-09-03: исходные канонические прогоны тикета 10 (Python/JS/TS/Ruby) собраны агентом с мёртвым инструментом Bash (образ харнеса без bash, docs/incidents/2026-09-03-dind-bash-missing/) и аннулированы (EXPERIMENT-LOG строки ~109-112). tickets['10'] и canonical_ticket перенацелены на переигровку на фикшеном харнессе (строки лога от 2026-09-03): python 73bad73f, javascript 64c457c9, typescript cc293e96, ruby 239606a6 — все 0 shell-ошибок, run-tests+contract зелёные, сошлись за 1 итерацию.",
   "schema_version": 1,
   "updated": "2026-09-03",
   "languages": {
     "python": {
       "in_talk": true,
-      "canonical_ticket": "9",
+      "canonical_ticket": "10",
       "tickets": {
         "1": "docs/pilot-runs/python/ticket-1/81c45f42-109c-4151-808e-a47905380dc5",
         "2": "docs/pilot-runs/python/ticket-2/18b1ded8-4a6b-4b3c-b175-ea6e26e4b6e3",
@@ -19,12 +19,12 @@
         "12-readside": "docs/pilot-runs/python/ticket-12-readside/549ffd1e-9656-49e9-a9dd-8bad49279cb2",
         "8": "docs/pilot-runs/python/ticket-8/0e202864-b2ae-4194-8929-e191e507ede6",
         "9": "docs/pilot-runs/python/ticket-9/53e0dd58-501f-4d44-a5ca-20cba93a95eb",
-        "10": "docs/pilot-runs/python/ticket-10/927ea3c7-215b-4dbb-958e-47cd0e51a971"
+        "10": "docs/pilot-runs/python/ticket-10/73bad73f-cd51-4b34-b280-bc92b17aee04"
       }
     },
     "javascript": {
       "in_talk": true,
-      "canonical_ticket": "9",
+      "canonical_ticket": "10",
       "tickets": {
         "1": "docs/pilot-runs/javascript/ticket-1/c7b65400-f333-42fd-90b2-c1515e1afd17",
         "2": "docs/pilot-runs/javascript/ticket-2/a7d571ea-0040-4194-9711-774c2bafc05b",
@@ -37,12 +37,12 @@
         "12-readside": "docs/pilot-runs/javascript/ticket-12-readside/a1ef7c17-d713-4c32-9a1b-5755bdf776eb",
         "8": "docs/pilot-runs/javascript/ticket-8/527f02ea-6b02-4d6f-aa9a-1c2c31da061a",
         "9": "docs/pilot-runs/javascript/ticket-9/e3bad61a-d2eb-4072-87c8-dc710286fcc8",
-        "10": "docs/pilot-runs/javascript/ticket-10/e9d0360f-ce51-43e5-844f-c0274e04f866"
+        "10": "docs/pilot-runs/javascript/ticket-10/64c457c9-4e3f-4c52-a1e4-b56675e34e86"
       }
     },
     "typescript": {
       "in_talk": true,
-      "canonical_ticket": "9",
+      "canonical_ticket": "10",
       "tickets": {
         "1": "docs/pilot-runs/typescript/ticket-1/3035088c-d307-4250-8b38-9f1615e1d464",
         "2": "docs/pilot-runs/typescript/ticket-2/10a838ac-4274-4023-9419-0e72c440e729",
@@ -55,12 +55,12 @@
         "12-readside": "docs/pilot-runs/typescript/ticket-12-readside/f64793d7-7ac1-4f31-ad71-30e376f6f8b9",
         "8": "docs/pilot-runs/typescript/ticket-8/860007dc-5b80-4db7-9ae0-75e766f9d969",
         "9": "docs/pilot-runs/typescript/ticket-9/87594dfa-45b9-4304-ba81-d4ef31a58c3d",
-        "10": "docs/pilot-runs/typescript/ticket-10/9cc6ac78-211e-4a7b-aeba-eb7eda2c42a8"
+        "10": "docs/pilot-runs/typescript/ticket-10/cc293e96-dfcf-4708-99f2-04d10d926fb2"
       }
     },
     "ruby": {
       "in_talk": true,
-      "canonical_ticket": "9",
+      "canonical_ticket": "10",
       "tickets": {
         "1": "docs/pilot-runs/ruby/ticket-1/402b4d1c-ac49-4cec-8133-a5e5fa1167a3",
         "2": "docs/pilot-runs/ruby/ticket-2/9062df84-d7d3-4e94-b3f2-2afc6e880502",
@@ -72,7 +72,7 @@
         "12-readside": "docs/pilot-runs/ruby/ticket-12-readside/a0e28dd9-86bf-40fa-bff7-673b91c9a857",
         "8": "docs/pilot-runs/ruby/ticket-8/0d5002dd-ef24-4624-adb7-069b8b681b3a",
         "9": "docs/pilot-runs/ruby/ticket-9/8aeb05b0-c549-4032-90e9-30217b600d91",
-        "10": "docs/pilot-runs/ruby/ticket-10/c9188c24-a45d-46c1-ab82-d03176b3f865"
+        "10": "docs/pilot-runs/ruby/ticket-10/239606a6-52d6-4917-a379-d1f68a070a6f"
       }
     },
     "go": {
