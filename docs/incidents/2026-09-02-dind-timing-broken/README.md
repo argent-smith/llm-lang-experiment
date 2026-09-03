@@ -159,3 +159,33 @@ E2e через фикшеный харнесс — прогон Python тике�
 несёт поле `warning`, в журнале помечены «н/д (DinD, до почина timing)».
 Пересчёт потребовал бы переигровки тикета 10 (решение оператора). Тикет
 11 и далее — на фикшеном харнессе.
+
+## Продолжение (2026-09-03): фикс `831f0a5` был неполным
+
+Первая переигровка тикета 10 (Python, на харнессе с bash) снова дала
+негодный архивный `transcript.jsonl` — 516 КБ **нулевых байт**. Не
+обрезка (как ловил `831f0a5`), а NUL-заполнение файла правильного
+размера: virtiofs Docker Desktop на macOS отдаёт хосту метаданные
+файла (размер), но не блоки данных, если writeback bind-mount-копии не
+завершился до `--rm` teardown. `cp` + голый `sync` в EXIT-trap от этого
+не спасает — `sync` без аргумента advisory, а не fsync конкретного
+файла. `analyze-timing-breakdown.py` при этом падал с `JSONDecodeError`.
+
+Фикс (три части):
+
+- `scripts/run-pilot-ticket.sh` — транскрипт читается из
+  `$CLAUDE_HOME_DIR/projects/*.jsonl` **первым** источником (это хостовый
+  bind-mount; после возврата `docker run` контейнер снесён и
+  virtiofs-writeback форсирован teardown'ом — данные на хосте целиком).
+  Копия в `/workspace` от entrypoint — теперь fallback. Оба кандидата
+  проходят валидатор `_valid_transcript` (непустой + первая непустая
+  строка парсится как JSON), NUL-файл отбраковывается.
+- `scripts/pilot-harness-entrypoint.sh` — `sync <файл>` (GNU coreutils,
+  fsync именно на копию) вместо голого `sync`.
+- `scripts/analyze-timing-breakdown.py` — не падает на NUL/мусорном
+  транскрипте: 0 валидных записей → ветка `warning`, не traceback.
+
+Проверено на переигровке тикета 10: Python — транскрипт 184/184 валидных
+JSON, читан из `$CLAUDE_HOME_DIR`; JavaScript — 166/166, `infra_ms`
+2001 мс (**первое подтверждение `infra_ms > 0` под DinD** — npm install
+в билде классифицировался как инфра).

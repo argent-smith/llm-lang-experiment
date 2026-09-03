@@ -226,9 +226,25 @@ def analyze(archive_dir: Path, verbose=False):
     transcript_span_ms = 0.0
     events = []
 
+    transcript_unparseable = False
+    records = []
     if transcript_path.exists():
-        lines = transcript_path.read_text().splitlines()
-        records = [json.loads(l) for l in lines if l.strip()]
+        raw = transcript_path.read_text(errors="replace")
+        # NUL-заполненный файл: virtiofs на macOS отдаёт размер, но не
+        # данные, если запись в bind-mount не сброшена до teardown --rm
+        # (переигровка тикета 10, 2026-09-03 — 516 КБ нулей). Парсим
+        # построчно, пропуская мусор; если не набралось ни одной записи —
+        # считаем транскрипт отсутствующим (ветка warning ниже).
+        for l in raw.splitlines():
+            l = l.strip("\x00 \t\r\n")
+            if not l:
+                continue
+            try:
+                records.append(json.loads(l))
+            except ValueError:
+                continue
+        if not records:
+            transcript_unparseable = True
         _all_ts = [parse_ts(r["timestamp"]) for r in records if r.get("timestamp")]
         if len(_all_ts) >= 2:
             transcript_span_ms = (max(_all_ts) - min(_all_ts)).total_seconds() * 1000
@@ -335,6 +351,12 @@ def analyze(archive_dir: Path, verbose=False):
     # В обоих случаях tool_wall_ms/infra/work по этому архиву недостоверны.
     if not transcript_path.exists():
         breakdown["warning"] = "нет transcript.jsonl — infra/work не посчитаны, model_ms = wall_ms."
+    elif transcript_unparseable:
+        breakdown["warning"] = (
+            "transcript.jsonl нечитаем (ни одной валидной JSON-записи — вероятно, "
+            "NUL-заполнен при teardown DinD-контейнера) — infra/work не посчитаны, "
+            "model_ms = wall_ms."
+        )
     elif transcript_span_ms and transcript_span_ms < 0.7 * wall_ms:
         breakdown["warning"] = (
             f"транскрипт охватывает лишь {transcript_span_ms / wall_ms:.0%} времени прогона — "

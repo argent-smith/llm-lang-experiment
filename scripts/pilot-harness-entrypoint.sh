@@ -102,8 +102,17 @@ _finish() {
     [ -f "$f" ] && transcript_src="$f"
   done
   if [ -n "$transcript_src" ]; then
-    cp "$transcript_src" /workspace/.harness-session-transcript.jsonl 2>/dev/null \
-      || echo "pilot-harness-entrypoint: не удалось скопировать транскрипт в /workspace" >&2
+    if cp "$transcript_src" /workspace/.harness-session-transcript.jsonl 2>/dev/null; then
+      # Голого `sync` мало: под virtiofs (Docker Desktop на macOS) writeback
+      # копии в bind-mount /workspace может не успеть до `--rm` teardown, и
+      # хост видит файл правильного размера, но из нулей (переигровка тикета
+      # 10, 2026-09-03 — 516 КБ NUL). GNU `sync <файл>` (пакет coreutils в
+      # образе) делает fsync именно на этот файл — форсирует writeback через
+      # virtiofs, а не advisory-флаш всей ФС.
+      sync /workspace/.harness-session-transcript.jsonl 2>/dev/null || sync
+    else
+      echo "pilot-harness-entrypoint: не удалось скопировать транскрипт в /workspace" >&2
+    fi
   else
     echo "pilot-harness-entrypoint: транскрипт сессии не найден в ~/.claude/projects" >&2
   fi
