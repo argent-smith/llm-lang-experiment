@@ -98,12 +98,136 @@ OpenAPI-схемы) + `make test` (smoke + контрактный тест пр�
 | `make pilot-ticket` | Один вызов `claude -p` по тикету, без гейтов и итераций: `make pilot-ticket PILOT_DIR=pilot-runs-live/python PROMPT=pilot-runs-live/python/.ticket-1-prompt.txt OUT=/tmp/ticket-1-result` — реализация + автоматическая архивация в `docs/pilot-runs/`; сами промпты тикетов — в `docs/pilot-runs/<язык>/ticket-<N>/*/prompt.txt` уже прошедших попыток                                                                                                                                                                                                                                     |
 | `make pilot-loop`   | Авто-итерирующий луп по тикету (с 2026-08-31 — основной способ, см. `CLAUDE.md`, «Метод», п. 3): `make pilot-loop PILOT_DIR=pilot-runs-live/python PROMPT=pilot-runs-live/python/.ticket-8-prompt.txt OUT=/tmp/ticket-8`. `claude -p` → `run-gates.sh` (tests/smoke/contract) → при провале блокирующего гейта авто-фикс-промпт → `claude -p` → … до сходимости или `--max-iters` (по умолч. 4). Доп. флаги — через `LOOP_ARGS="--max-iters 3 --smoke skip"`. Сводка по итерациям — `<OUT>.loop.json`. Каждая итерация архивируется отдельной session-директорией под тем же `ticket-<TAG>` |
 | `make gates`        | Три acceptance-гейта против снапшота реализации, без `claude -p`: `make gates PILOT_DIR=pilot-runs-live/python OUT=/tmp/gates`. Режимы — через `GATE_ARGS="--contract block --smoke info --tests block"`. Пишет `<OUT>/gates.json`. Контракт поднимает сервер с `/data` на tmpfs (не bind-mount) — иначе virtiofs Docker Desktop делает прогон недетерминированным, см. `docs/incidents/2026-08-31-contract-gate-tooling/`                                                                                                                                                                  |
+| `make pilot-replay` | Кампания перепрогона всего бэклога на стабилизированном воркфлоу (авто-луп + DinD + все гейты `block`) с чекпойнтом и митигацией лимита 429/529: `make pilot-replay REPLAY_ARGS="--dry-run"`. См. раздел «Кампания перепрогона пилота» ниже                                                                                                                                                                                                                                                                                                                                                 |
 
 Обёртки в директории пилота: `run-server`, `run-client`, `run-tests`
 (последняя — с 2026-08-31, гоняет штатные тесты реализации в Docker,
 `docs/SYNCBOX-SPEC.md` → «Критерии приёмки»). Для пилотов тикетов 1–12
 (py/js/ts/ruby) `run-tests` дописан руками под гейт; агент пишет свой с
 тикета 8+.
+
+## Кампания перепрогона пилота
+
+`scripts/run-pilot-replay.sh` (`make pilot-replay REPLAY_ARGS="..."`).
+
+### Зачем
+
+Единой конфигурации у бэклога пока нет (см. раздел «Сопоставимость:
+метод дрейфовал» в `docs/PILOT-COMPARISON-talk-languages.md`): тикеты
+1–7 прошли ручным циклом на Docker-out-of-Docker, 8–9 — скриптованным
+лупом, но всё ещё DooD и до фикса метрики времени, и только 10–11 — на
+целевой конфигурации (DinD, авто-луп `run-pilot-loop.sh`, все гейты
+`block`). Кампания перепрогоняет весь бэклог под конфигурацией 10–11,
+чтобы страты S1/S2/S3 в сравнительном отчёте схлопнулись в одну.
+
+### Охват первой кампании
+
+Четыре языка доклада (`in_talk: true`) × тикеты 1–11 = 44 ячейки
+(язык × тикет). Go/Scala/OCaml (`in_talk: false`) — отдельной кампанией
+позже (`--languages "go scala ocaml" --tickets "1 2 3"`).
+
+### Что фиксируется
+
+- Харнесс: DinD, `run-pilot-ticket.sh`, образ `pilot-harness:latest`,
+  базовые образы предзапечены (`scripts/build-base-images-tar.sh` один
+  раз до старта).
+- Цикл: `run-pilot-loop.sh --max-iters 4`.
+- Модель/effort: `claude-sonnet-5` / `xhigh` (зашито в
+  `run-pilot-ticket.sh`).
+- Гейты: `--tests block --contract block --smoke block`. **smoke теперь
+  `block`** (не `info`, как на тикетах 8–9): тикеты 8–11 сделаны, шаги
+  смока 08–11 больше не падают by design. До кампании проверить, что
+  reference-impl проходит `make smoke` 13/13 — то есть гнать кампанию на
+  Linux-хосте, не на macOS (там флак file-sharing, см. «Типичные
+  проблемы»).
+- Промпт ячейки — verbatim initial-промпт тикета из архива
+  `docs/pilot-runs/<lang>/ticket-<N>/<канон-сессия>/prompt.txt` (канон
+  из `manifest.json`; если там фикс-промпт — берётся любая сессия
+  тикета с initial-промптом). Проверить резолвинг до старта:
+  `make pilot-replay REPLAY_ARGS="--check-prompts"`.
+
+### Порядок
+
+Language-major, тикеты строго 1→11 внутри языка. У каждого языка своя
+персистентная pilot-директория `pilot-runs-live/<lang>/`, которая **не
+вайпается между его тикетами** (тикет N строится на коде N−1). Перед
+первым тикетом языка директория должна быть пуста — иначе скрипт
+откажется (или `--force-clean`, чтобы очистить).
+
+### Митигация лимита 429 / 529
+
+Оконный лимит использования (не хаотичный per-request rate limit): при
+нём `claude -p` отдаёт `is_error: true` + `api_error_status: 429|529`,
+точное время сброса — текстом в `result.json` → `.result`. Ждать
+backoff бессмысленно, только явную паузу до сброса (CLAUDE.md, «Сначала
+пилот», п. 3).
+
+`run-pilot-loop.sh` теперь выделяет этот случай отдельным исходом
+(`сдался (rate-limit <код> …)` + поле `api_error_status` в `.loop.json`).
+Оркестратор на него:
+
+1. парсит время сброса из последнего `.iterK.json` (`replay-checkpoint.py
+   parse-reset`); если не распарсилось — фиксированная пауза
+   `--fixed-pause-sec` (1 ч);
+2. пишет `pause`-запись в чекпойнт (вне учёта времени и итераций —
+   пауза между вызовами `claude -p` в «Время» не входит, CLAUDE.md,
+   «Лог»);
+3. спит до сброса + `--pause-margin-sec` (5 мин), но не дольше
+   `--max-pause-sec` (6 ч) за одну паузу;
+4. повторяет ту же ячейку с итерации 1 (свежая сессия; токены
+   до-429-й итерации логируются, но пилотной итерацией не считаются);
+5. предел `--max-429-retries` (3) пауз-ретраев на ячейку, потом жёсткий
+   стоп с чистым чекпойнтом — продолжить после сброса окна:
+   `--resume`.
+
+Не-429 инфра-фейл и «харнесс неисправен» (нет bash в образе) —
+жёсткий стоп без ретрая: чинить, не повторять.
+
+### Как запускать
+
+```bash
+# 0. предзапечь базовые образы (один раз на машине)
+scripts/build-base-images-tar.sh
+
+# 1. проверить резолвинг промптов по всем 44 ячейкам
+make pilot-replay REPLAY_ARGS="--check-prompts"
+
+# 2. план ячеек
+make pilot-replay REPLAY_ARGS="--dry-run"
+
+# 3. кампания (правильно — сразу после известного сброса окна)
+make pilot-replay REPLAY_ARGS="--force-clean"
+
+# 4. после Ctrl-C / стопа по 429 / падения — продолжить
+make pilot-replay REPLAY_ARGS="--resume --out-root pilot-runs-live/.replay-<TS>"
+```
+
+Исход: `0` — все ячейки сошлись; `1` — жёсткий стоп (429 сверх лимита,
+не-429 инфра, харнесс); `2` — дошло до конца, но часть ячеек не сошлась
+(`spec-giveup` / `no-converge`) — данные записаны, нужен разбор.
+
+### После кампании
+
+Скрипт `manifest.json` не трогает. Вручную (как для тикета 10):
+
+1. По каждой новой сошедшейся сессии —
+   `scripts/verify-replay.py docs/pilot-runs/<lang>/ticket-<N>/<session>`.
+2. `docs/pilot-runs/manifest.json`: `languages.<lang>.tickets.<N>` →
+   новый путь; старые директории оставить, добавить пометку
+   `_ticket_<N>_replayed_<TS>`.
+3. Пересобрать `docs/PILOT-COMPARISON-talk-languages.md` (страта теперь
+   одна), дописать строки в `docs/EXPERIMENT-LOG.md`, обновить буллет
+   «Пилот с этим согласуется» в
+   `docs/MARKET-PREVALENCE-experiment-languages.md`, если отношение
+   TS↔Python поедет.
+
+### Бюджет
+
+Из текущей сетки отчёта: сумма тикетов 1–11 на язык — Python ~$15,
+JavaScript ~$14, TypeScript ~$19, Ruby ~$22 за один чистый проход.
+С ре-итерациями лупа и потерянными до-429 партиалами — ×1.5–2, итого
+**$105–140** на четыре языка. Календарно с паузами по окнам 429 —
+кампания на 2–3 дня.
 
 ## Типичные проблемы
 
