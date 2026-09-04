@@ -67,6 +67,7 @@ shellcheck: ## shellcheck по bash-скриптам acceptance/ и scripts/
 		acceptance/reference-impl/run-server acceptance/reference-impl/run-client \
 		acceptance/reference-impl/_docker.sh \
 		scripts/run-pilot-ticket.sh scripts/run-gates.sh scripts/run-pilot-loop.sh \
+		scripts/run-pilot-replay.sh \
 		scripts/pilot-harness-entrypoint.sh scripts/build-base-images-tar.sh
 
 .PHONY: markdownlint
@@ -102,6 +103,10 @@ pilot-loop: venv ## Авто-итерирующий луп по тикету: cl
 .PHONY: gates
 gates: venv ## Прогнать три acceptance-гейта против снапшота реализации: make gates PILOT_DIR=pilot-runs-live/python OUT=/tmp/gates
 	scripts/run-gates.sh $(PILOT_DIR) $(OUT) $(GATE_ARGS)
+
+.PHONY: pilot-replay
+pilot-replay: venv ## Кампания перепрогона бэклога на стабилизированном воркфлоу (чекпойнт + митигация 429): make pilot-replay REPLAY_ARGS="--dry-run"
+	scripts/run-pilot-replay.sh $(REPLAY_ARGS)
 
 .PHONY: check
 check: lint test ## Полный набор: то же, что гоняет CI

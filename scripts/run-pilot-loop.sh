@@ -70,6 +70,7 @@ jget() { python3 -c "import json,sys; d=json.load(open(sys.argv[1])); v=d.get(sy
 
 ITER_RECORDS=""
 outcome=""
+api_status=""
 iter=1
 
 while [ "$iter" -le "$MAX_ITERS" ]; do
@@ -90,7 +91,20 @@ while [ "$iter" -le "$MAX_ITERS" ]; do
   rec="{\"iter\": $iter, \"session\": \"$session\", \"claude_rc\": $claude_rc, \"is_error\": \"$is_error\", \"cost_usd\": \"$cost\", \"duration_ms\": \"$dur_ms\", \"num_turns\": \"$turns\""
 
   if [ "$claude_rc" -ne 0 ] || [ "$is_error" = "True" ] || [ "$is_error" = "true" ]; then
-    outcome="сдался (инфра, не модель: claude_rc=$claude_rc api_error_status=$api_status)"
+    case "$api_status" in
+      429|529)
+        # Оконный лимит использования (не хаотичный per-request rate limit):
+        # точное время сброса — в "$ipfx.json" .result. Оркестратор
+        # scripts/run-pilot-replay.sh ловит этот outcome по подстроке
+        # "rate-limit <код>", ждёт до сброса и повторяет ту же ячейку с
+        # итерации 1. Отдельный статус, чтобы не путать с настоящим
+        # инфра-фейлом (docker/харнесс), который ретраить нельзя.
+        outcome="сдался (rate-limit $api_status — инфра, не модель; время сброса в .iter${iter}.json .result)"
+        ;;
+      *)
+        outcome="сдался (инфра, не модель: claude_rc=$claude_rc api_error_status=$api_status)"
+        ;;
+    esac
     ITER_RECORDS="${ITER_RECORDS}${ITER_RECORDS:+,}${rec}, \"gates\": null, \"note\": \"infra failure — цикл прерван\"}"
     echo "run-pilot-loop.sh: $outcome" >&2
     break
@@ -169,6 +183,7 @@ done
   printf '  "pilot_dir": "%s",\n' "$PILOT_DIR"
   printf '  "max_iters": %s,\n' "$MAX_ITERS"
   printf '  "gate_modes": {"tests": "%s", "smoke": "%s", "contract": "%s"},\n' "$MODE_TESTS" "$MODE_SMOKE" "$MODE_CONTRACT"
+  printf '  "api_error_status": "%s",\n' "${api_status:-}"
   printf '  "outcome": "%s",\n' "$outcome"
   printf '  "iterations": [%s]\n' "$ITER_RECORDS"
   printf '}\n'
