@@ -12,6 +12,7 @@ MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	docs/PILOT-COMPARISON-python-go.md \
 	docs/PILOT-COMPARISON-talk-languages.md \
 	docs/PILOT-COMPARISON-all-languages.md \
+	docs/MARKET-PREVALENCE-talk-languages.md \
 	"docs/CFP RubyRussia 2026.md" "docs/Конспект разговора с ментором.md" \
 	acceptance/reference-impl/README.md \
 	docs/incidents/2026-08-19-python-ticket1-contamination/README.md \
