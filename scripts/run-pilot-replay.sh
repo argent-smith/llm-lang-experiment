@@ -245,15 +245,22 @@ for lang in $LANGUAGES; do
       continue
     fi
 
-    # Очистка pilot-dir языка — только перед его ПЕРВЫМ тикетом в кампании
-    # и только по явному --force-clean; при --resume не трогаем никогда.
-    if [ "$first_ticket_of_lang" -eq 1 ] && [ "$DO_RESUME" -ne 1 ] && lang_dir_has_code "$PDIR"; then
+    # Очистка pilot-dir языка перед его ПЕРВЫМ тикетом в кампании. Применяется,
+    # когда у языка в чекпойнте ещё НЕТ ни одной ячейки (свежий старт) — в т.ч.
+    # под --resume: там уже пройденные языки отсеиваются по is-done выше, а
+    # ещё не начатые всё равно должны стартовать с чистой директории, иначе
+    # тикет 1 достраивает поверх старого кода (баг: до этого проверка целиком
+    # пропускалась при --resume). Язык в процессе (есть записанные ячейки) не
+    # трогаем — там накопленный код нужен следующим тикетам.
+    lang_started=0
+    python3 "$CKPT_PY" lang-started "$CHECKPOINT" "$lang" && lang_started=1
+    if [ "$first_ticket_of_lang" -eq 1 ] && [ "$lang_started" -eq 0 ] && lang_dir_has_code "$PDIR"; then
       if [ "$DO_FORCE_CLEAN" -eq 1 ]; then
         log "--force-clean: очищаю $PDIR перед первым тикетом $lang"
         find "$PDIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
       else
-        log "pilot-dir $PDIR непуст, а это первый тикет $lang — тикет 1 достроит поверх чужого кода"
-        log "  очисти вручную или запусти с --force-clean (для продолжения прежней кампании — --resume)"
+        log "pilot-dir $PDIR непуст, язык $lang ещё не начат — тикет 1 достроит поверх чужого кода"
+        log "  очисти вручную или добавь --force-clean"
         python3 "$CKPT_PY" set-stopped "$CHECKPOINT" --reason "pilot-dir непуст на старте языка" --lang "$lang" --ticket "$n"
         exit 1
       fi
