@@ -181,6 +181,17 @@ def cmd_is_done(args) -> int:
     return 0 if (c and c.get("status") == "converged") else 1
 
 
+def cmd_lang_started(args) -> int:
+    """exit 0, если у языка есть ХОТЯ БЫ одна записанная ячейка (любой статус).
+    Нужно run-pilot-replay.sh, чтобы под --resume отличить язык в процессе
+    (не вайпать накопленный код) от ещё не начатого (вайпать/отказать)."""
+    try:
+        data = _load(args.ckpt)
+    except (OSError, ValueError):
+        return 1
+    return 0 if any(c["lang"] == args.lang for c in data["cells"]) else 1
+
+
 _STATUS_FROM_OUTCOME = [
     (re.compile(r"^сошлось"), "converged"),
     (re.compile(r"rate-limit\s+(429|529)"), "rate_limited"),
@@ -352,6 +363,11 @@ def main() -> int:
     p.add_argument("lang")
     p.add_argument("ticket")
     p.set_defaults(fn=cmd_is_done)
+
+    p = sub.add_parser("lang-started")
+    p.add_argument("ckpt")
+    p.add_argument("lang")
+    p.set_defaults(fn=cmd_lang_started)
 
     p = sub.add_parser("record-cell")
     p.add_argument("ckpt")
