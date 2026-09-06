@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Runs the syncbox CLI client inside a Docker container built/managed via
+# docker compose, forwarding the subcommand and its arguments unchanged.
+# See SYNCBOX-SPEC.md, sections "CLI (обязательный контракт)" and
+# "Docker-изоляция".
+#
+# Usage: run-client <push|pull|sync|status> <dir> --server <url>
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir"
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: run-client <push|pull|sync|status> <dir> --server <url>" >&2
+  exit 1
+fi
+
+command="$1"
+shift
+
+dir=""
+server="${SYNCBOX_SERVER:-}"
+extra_args=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)
+      server="${2:-}"
+      shift 2
+      ;;
+    *)
+      if [[ -z "$dir" ]]; then
+        dir="$1"
+      else
+        extra_args+=("$1")
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$dir" ]]; then
+  echo "run-client: <dir> is required" >&2
+  exit 1
+fi
+
+mkdir -p "$dir"
+dir="$(cd "$dir" && pwd)"
+
+export SYNCBOX_CLIENT_WORKDIR_HOST="$dir"
+
+client_args=("$command" "/workdir")
+if [[ -n "$server" ]]; then
+  client_args+=(--server "$server")
+fi
+client_args+=("${extra_args[@]}")
+
+exec docker compose run --build --rm client "${client_args[@]}"

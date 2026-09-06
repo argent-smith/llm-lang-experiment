@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Runs the Syncbox test suite via docker compose (tests always run
+# containerized, never directly on the host).
+#
+# Usage: run-tests
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILE="$REPO_ROOT/docker-compose.yml"
+
+status=0
+
+echo "== server tests =="
+docker compose -f "$COMPOSE_FILE" run --rm --build tests || status=$?
+
+echo "== client tests =="
+docker compose -f "$COMPOSE_FILE" run --rm --build client-tests || status=$?
+
+exit "$status"

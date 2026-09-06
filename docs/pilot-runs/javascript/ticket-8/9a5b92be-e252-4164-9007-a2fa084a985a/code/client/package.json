@@ -1,0 +1,14 @@
+{
+  "name": "syncbox-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Syncbox CLI client",
+  "main": "src/cli.js",
+  "bin": {
+    "syncbox": "bin/syncbox"
+  },
+  "scripts": {
+    "start": "node bin/syncbox",
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Runs the syncbox implementation's automated test suite inside Docker.
+# See SYNCBOX-SPEC.md, section "Критерии приёмки".
+#
+# Usage: run-tests
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir"
+
+exec docker compose run --build --rm tests

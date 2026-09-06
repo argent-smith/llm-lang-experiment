@@ -1,0 +1,35 @@
+services:
+  server:
+    build:
+      context: ./server
+    environment:
+      - SYNCBOX_DATA_DIR=/data
+      - SYNCBOX_PORT=${SYNCBOX_PORT:-8080}
+    volumes:
+      - ${SYNCBOX_HOST_DATA_DIR:-./.syncbox-data}:/data
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+
+  tests:
+    build:
+      context: ./server
+    entrypoint: ["npm", "test"]
+
+  client:
+    build:
+      context: ./client
+    environment:
+      - SYNCBOX_SERVER=${SYNCBOX_SERVER:-}
+    volumes:
+      - ${SYNCBOX_HOST_CLIENT_DIR:-.}:/workdir
+    # The client needs to reach whatever host-visible URL (127.0.0.1/localhost
+    # + published port) was used to reach the server started via run-server;
+    # host networking makes that "just work" the same way it would from the
+    # host shell itself, without guessing at compose service DNS names.
+    network_mode: "host"
+
+  client-tests:
+    build:
+      context: ./client
+    entrypoint: ["npm", "test"]
+

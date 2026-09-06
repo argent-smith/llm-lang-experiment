@@ -1,0 +1,22 @@
+services:
+  server:
+    build: .
+    environment:
+      SYNCBOX_DATA_DIR: /data
+      SYNCBOX_PORT: ${SYNCBOX_PORT:-8080}
+    volumes:
+      - ${SYNCBOX_DATA_DIR:-/tmp}:/data
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+
+  client:
+    build: .
+    entrypoint: ["client/syncbox"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${SYNCBOX_CLIENT_DIR:-/tmp}:/workdir
+
+  tests:
+    build: .
+    command: ["bundle", "exec", "rspec"]

@@ -1,0 +1,16 @@
+services:
+  server:
+    build:
+      context: ./server
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    environment:
+      - SYNCBOX_DATA_DIR=/data
+      - SYNCBOX_PORT=${SYNCBOX_PORT:-8080}
+    volumes:
+      - "${SYNCBOX_DATA_DIR_HOST:-./.syncbox-data}:/data"
+
+  tests:
+    build:
+      context: ./server
+    command: ["npm", "test"]

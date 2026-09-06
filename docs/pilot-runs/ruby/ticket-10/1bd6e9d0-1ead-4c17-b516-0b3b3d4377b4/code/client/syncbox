@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+# CLI entry point (see "CLI (обязательный контракт)" in SYNCBOX-SPEC.md).
+# Usage: syncbox <push|pull|sync|status> <dir> --server <url>
+
+require_relative "config"
+require_relative "server_client"
+require_relative "push"
+require_relative "pull"
+require_relative "status"
+require_relative "sync"
+
+begin
+  config = Syncbox::ClientConfig.parse(ARGV)
+rescue Syncbox::ClientConfig::Error => e
+  warn "syncbox: #{e.message}"
+  exit 1
+end
+
+case config.command
+when "push"
+  exit(Syncbox::Push.run(config))
+when "pull"
+  exit(Syncbox::Pull.run(config))
+when "status"
+  exit(Syncbox::Status.run(config))
+when "sync"
+  exit(Syncbox::Sync.run(config))
+end

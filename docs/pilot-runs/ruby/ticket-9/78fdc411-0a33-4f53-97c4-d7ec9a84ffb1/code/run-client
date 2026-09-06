@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Runs the Syncbox client in a Docker container.
+# Usage: run-client <push|pull|sync|status> <dir> --server <url>
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "run-client: usage: run-client <push|pull|sync|status> <dir> --server <url>" >&2
+  exit 1
+fi
+
+subcommand="$1"
+dir="$2"
+shift 2
+
+server="${SYNCBOX_SERVER:-}"
+extra_args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)
+      server="$2"
+      shift 2
+      ;;
+    *)
+      extra_args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+mkdir -p "$dir"
+dir="$(cd "$dir" && pwd)"
+export SYNCBOX_CLIENT_DIR="$dir"
+
+# The client runs inside its own container, not on the host: "localhost" /
+# "127.0.0.1" there refer to the container itself, not the host machine
+# where --server's port is actually published (e.g. by run-server). Retarget
+# just those two exact hosts at host.docker.internal (mapped to the host
+# gateway via extra_hosts in docker-compose.yml) so a --server value copied
+# from the host still resolves. The regex anchors the host to end-of-string/
+# ":"/"/" so it doesn't also rewrite an unrelated host like
+# "localhostx.example.com". Anything else (a compose service name, a real
+# hostname) is passed through unchanged.
+if [[ -n "$server" && "$server" =~ ^(https?)://(localhost|127\.0\.0\.1)(:[0-9]+)?(/.*)?$ ]]; then
+  server="${BASH_REMATCH[1]}://host.docker.internal${BASH_REMATCH[3]}${BASH_REMATCH[4]}"
+fi
+
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+args=("$subcommand" "/workdir")
+if [[ -n "$server" ]]; then
+  args+=("--server" "$server")
+fi
+args+=("${extra_args[@]}")
+
+exec docker compose run --rm client "${args[@]}"
