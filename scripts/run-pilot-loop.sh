@@ -128,6 +128,24 @@ while [ "$iter" -le "$MAX_ITERS" ]; do
     break
   fi
 
+  # Оборванный вызов. claude -p завершился формально успешно (claude_rc=0,
+  # is_error=false, subtype=success), но поле result — это сериализованный
+  # вызов инструмента, а не финальное сообщение ассистента: CLI отдал
+  # незавершённый tool_use как результат, транскрипт при этом обрезан.
+  # Наблюдалось на TS тикете 8 replay-кампании (num_turns=1,
+  # result="Bash({...})", транскрипт покрыл 34% прогона) — вероятно
+  # аварийное завершение вызова внутри DinD. Гейты этого НЕ видят: tests
+  # и contract могут пройти на коде прошлого тикета, а нужная фича не
+  # написана. Не даём итерации зачесться — как и «No suitable shell
+  # found». Оператор разбирается и повторяет через --resume.
+  _res="$(jget "$ipfx.json" result)"
+  if printf '%s' "$_res" | grep -qE '^(Bash|Read|Edit|Write|Glob|Grep|Task|WebFetch|WebSearch|NotebookEdit|TodoWrite|MultiEdit)\(\{'; then
+    outcome="сдался (харнесс неисправен: оборванный вызов claude -p — result это вызов инструмента, не завершение; num_turns=$turns)"
+    ITER_RECORDS="${ITER_RECORDS}${ITER_RECORDS:+,}${rec}, \"gates\": null, \"harness_invalid\": true, \"note\": \"aborted call — result is a serialized tool_use, not a completion; итерация недействительна\"}"
+    echo "run-pilot-loop.sh: $outcome" >&2
+    break
+  fi
+
   # Агент правил внешний контракт (копии SYNCBOX-SPEC.md / syncbox-openapi.yaml
   # в директории пилота — одноразовые, run-pilot-ticket.sh перезаписывает их из
   # docs/ на каждый вызов, гейт проверяет каноническую схему). Это сигнал, что

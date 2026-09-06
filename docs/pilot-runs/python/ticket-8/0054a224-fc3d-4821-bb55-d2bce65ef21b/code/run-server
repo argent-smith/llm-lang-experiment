@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "usage: run-server --data-dir <path> [--port <n>]" >&2
+}
+
+DATA_DIR="${SYNCBOX_DATA_DIR:-}"
+PORT="${SYNCBOX_PORT:-8080}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --data-dir)
+      [[ $# -ge 2 ]] || { usage; exit 1; }
+      DATA_DIR="$2"
+      shift 2
+      ;;
+    --port)
+      [[ $# -ge 2 ]] || { usage; exit 1; }
+      PORT="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "run-server: unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$DATA_DIR" ]]; then
+  echo "run-server: --data-dir is required (or set SYNCBOX_DATA_DIR)" >&2
+  exit 1
+fi
+
+mkdir -p "$DATA_DIR"
+DATA_DIR_ABS="$(cd "$DATA_DIR" && pwd)"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+
+export SYNCBOX_DATA_DIR_HOST="$DATA_DIR_ABS"
+export SYNCBOX_PORT="$PORT"
+
+PROJECT="syncbox-${PORT}"
+LOGS_PID=""
+
+cleanup() {
+  [[ -n "$LOGS_PID" ]] && kill "$LOGS_PID" >/dev/null 2>&1
+  docker compose -p "$PROJECT" down --remove-orphans --timeout 5 >/dev/null 2>&1 || true
+}
+trap 'cleanup; exit 0' INT TERM
+trap cleanup EXIT
+
+docker compose -p "$PROJECT" up --build --force-recreate --remove-orphans -d server
+CID="$(docker compose -p "$PROJECT" ps -q server)"
+
+docker logs -f "$CID" &
+LOGS_PID=$!
+
+docker wait "$CID" >/dev/null 2>&1 &
+WAIT_PID=$!
+wait "$WAIT_PID"

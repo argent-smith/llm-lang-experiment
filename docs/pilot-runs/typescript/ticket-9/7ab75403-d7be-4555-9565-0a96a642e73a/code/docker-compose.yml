@@ -1,0 +1,32 @@
+services:
+  server:
+    build:
+      context: ./server
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    environment:
+      - SYNCBOX_DATA_DIR=/data
+      - SYNCBOX_PORT=${SYNCBOX_PORT:-8080}
+    volumes:
+      - "${SYNCBOX_DATA_DIR_HOST:-./.syncbox-data}:/data"
+
+  tests:
+    build:
+      context: ./server
+    command: ["npm", "test"]
+
+  client:
+    build:
+      context: ./client
+    # host networking so a --server URL pointing at the caller's own
+    # localhost (e.g. a server started via run-server, which publishes its
+    # port to the host) is reachable from inside this container too.
+    network_mode: "host"
+    volumes:
+      - "${SYNCBOX_CLIENT_WORKDIR_HOST:-.}:/workdir"
+
+  client-tests:
+    build:
+      context: ./client
+    entrypoint: []
+    command: ["npm", "test"]

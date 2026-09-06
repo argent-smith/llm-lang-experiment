@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Runs the implementation's automated test suite inside Docker.
+# Usage: run-tests
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+exec docker compose run --build --rm tests

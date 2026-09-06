@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Launches the Syncbox CLI client via docker compose (client always runs
+# containerized, never directly on the host).
+#
+# Usage: run-client <push|pull|sync|status> <dir> --server <url>
+#        SYNCBOX_SERVER=<url> run-client <push|pull|sync|status> <dir>
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "run-client: usage: run-client <push|pull|sync|status> <dir> --server <url>" >&2
+  exit 1
+fi
+
+COMMAND="$1"
+shift
+
+SERVER="${SYNCBOX_SERVER:-}"
+POSITIONAL=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)
+      SERVER="$2"
+      shift 2
+      ;;
+    *)
+      POSITIONAL+=("$1")
+      shift
+      ;;
+  esac
+done
+
+DIR="${POSITIONAL[0]:-}"
+
+if [[ -z "$DIR" ]]; then
+  echo "run-client: <dir> is required" >&2
+  exit 1
+fi
+
+if [[ -z "$SERVER" ]]; then
+  echo "run-client: --server is required (or set SYNCBOX_SERVER)" >&2
+  exit 1
+fi
+
+mkdir -p "$DIR"
+DIR="$(cd "$DIR" && pwd)"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+export SYNCBOX_HOST_CLIENT_DIR="$DIR"
+export SYNCBOX_SERVER="$SERVER"
+
+exec docker compose -f "$REPO_ROOT/docker-compose.yml" run --rm --build client "$COMMAND" /workdir
