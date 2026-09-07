@@ -15,6 +15,7 @@ MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	docs/MARKET-PREVALENCE-experiment-languages.md \
 	docs/REPLAY-CAMPAIGN-2026-09.md \
 	docs/TALK-OUTLINE-rubyrussia-2026.md \
+	docs/TALK-ANNOUNCEMENT-rubyrussia-2026.md \
 	"docs/CFP RubyRussia 2026.md" "docs/Конспект разговора с ментором.md" \
 	acceptance/reference-impl/README.md \
 	docs/incidents/2026-08-19-python-ticket1-contamination/README.md \
