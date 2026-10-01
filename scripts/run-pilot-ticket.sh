@@ -72,6 +72,11 @@
 
 set -euo pipefail
 
+# Защита от контаминации через открытый веб: см. lib-open-web-guard.sh.
+# shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/lib-open-web-guard.sh"
+require_open_web_ack || exit $?
+
 PILOT_DIR="${1:?Использование: run-pilot-ticket.sh <pilot-dir> <prompt-file> <output-prefix>}"
 PROMPT_FILE="${2:?Использование: run-pilot-ticket.sh <pilot-dir> <prompt-file> <output-prefix>}"
 OUTPUT_PREFIX="${3:?Использование: run-pilot-ticket.sh <pilot-dir> <prompt-file> <output-prefix>}"
@@ -206,6 +211,17 @@ rm -f "$PILOT_DIR/.harness-session-transcript.jsonl"
 # docs/incidents/2026-09-02-dind-timing-broken/). Меряем сами и отдаём
 # analyze-timing-breakdown.py.
 WALL_START_MS="$(python3 -c 'import time; print(int(time.time() * 1000))')"
+#
+# ВЕБ АГЕНТА НЕ ЗАКРЫТ. Репозиторий публичный, а ниже нет ни
+# --disallowedTools WebFetch,WebSearch, ни ограничения исходящей сети
+# контейнера, так что агент может скачать эталонную реализацию и решения
+# прошлых прогонов. Поэтому запуск защищён require_open_web_ack (выше):
+# без PILOT_ACK_OPEN_WEB=1 скрипт не стартует. Закрыть веб до полного
+# прогона (CLAUDE.md, «Сначала пилот», пункт 4): добавить
+# `--disallowedTools WebFetch,WebSearch` в вызов claude -p, ограничить
+# сеть контейнера allowlist-ом реестров пакетов, проверить
+# диагностическим прогоном; затем удалить lib-open-web-guard.sh и его
+# вызовы в трёх скриптах.
 docker run --rm -i \
   --privileged \
   -v "$PILOT_DIR:/workspace:rw" \

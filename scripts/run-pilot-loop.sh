@@ -35,6 +35,11 @@ PILOT_DIR="$(cd "$PILOT_DIR" && pwd)"
 INITIAL_PROMPT="$(cd "$(dirname "$INITIAL_PROMPT")" && pwd)/$(basename "$INITIAL_PROMPT")"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Защита от контаминации через открытый веб: см. lib-open-web-guard.sh.
+# shellcheck source=/dev/null
+source "$REPO_ROOT/scripts/lib-open-web-guard.sh"
+require_open_web_ack || exit $?
+
 MAX_ITERS=4
 PORT=18300
 MODE_TESTS=block
