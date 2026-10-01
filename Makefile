@@ -70,7 +70,7 @@ shellcheck: ## shellcheck по bash-скриптам acceptance/ и scripts/
 		acceptance/reference-impl/run-server acceptance/reference-impl/run-client \
 		acceptance/reference-impl/_docker.sh \
 		scripts/run-pilot-ticket.sh scripts/run-gates.sh scripts/run-pilot-loop.sh \
-		scripts/run-pilot-replay.sh \
+		scripts/run-pilot-replay.sh scripts/lib-open-web-guard.sh \
 		scripts/pilot-harness-entrypoint.sh scripts/build-base-images-tar.sh
 
 .PHONY: markdownlint

@@ -61,6 +61,11 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Защита от контаминации через открытый веб: см. lib-open-web-guard.sh.
+# shellcheck source=/dev/null
+source "$REPO_ROOT/scripts/lib-open-web-guard.sh"
+require_open_web_ack || exit $?
 MANIFEST="$REPO_ROOT/docs/pilot-runs/manifest.json"
 CKPT_PY="$REPO_ROOT/scripts/replay-checkpoint.py"
 LOOP_SH="$REPO_ROOT/scripts/run-pilot-loop.sh"
