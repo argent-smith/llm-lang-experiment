@@ -13,6 +13,12 @@ pilot-runs-live/
 .scala-build/
 _build/
 
+# Локальные артефакты (записи звонков и т.п.), не часть эксперимента
+.artifacts/
+
+# Локальные workspace-файлы редактора (пути зависят от раскладки каталогов)
+*.code-workspace
+
 # Предзапечённые базовые образы для DinD-харнеса (крупный, регенится
 # scripts/build-base-images-tar.sh)
 scripts/base-images.tar
