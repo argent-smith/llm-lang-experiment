@@ -15,6 +15,8 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 export PILOT_MODEL=claude-opus-5-5
+# claude-opus-5-5 требует Claude Code от 2.1.280; 2.1.238 основной кампании отвечает 400.
+export PILOT_CLAUDE_CODE_VERSION=2.1.288
 export PILOT_EFFORT=high
 export PILOT_DISALLOW_WEB_TOOLS=1
 

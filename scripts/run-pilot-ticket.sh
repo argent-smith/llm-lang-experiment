@@ -106,7 +106,22 @@ fi
 # так же, исчезал сразу после сборки. Чистки больше нет (Docker-in-
 # Docker, см. шапку), но имя оставлено как есть — на него завязаны
 # .github/workflows и docs.
-HARNESS_IMAGE="pilot-harness:latest"
+#
+# PILOT_CLAUDE_CODE_VERSION — версия Claude Code в образе харнеса (по
+# умолчанию 2.1.238, как в основной кампании; закреплена тем же принципом,
+# что и ID модели — см. pilot-harness.Dockerfile). Новые модели требуют
+# более новый CLI (claude-opus-5-5 — от 2.1.280). Образ с версией не по
+# умолчанию тегируется отдельно, чтобы не перезаписать pilot-harness:latest.
+PILOT_CLAUDE_CODE_VERSION="${PILOT_CLAUDE_CODE_VERSION:-2.1.238}"
+if ! [[ "$PILOT_CLAUDE_CODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "run-pilot-ticket.sh: PILOT_CLAUDE_CODE_VERSION=$PILOT_CLAUDE_CODE_VERSION — нужна точная версия X.Y.Z" >&2
+  exit 2
+fi
+if [ "$PILOT_CLAUDE_CODE_VERSION" = "2.1.238" ]; then
+  HARNESS_IMAGE="pilot-harness:latest"
+else
+  HARNESS_IMAGE="pilot-harness:cc-$PILOT_CLAUDE_CODE_VERSION"
+fi
 HARNESS_DOCKERFILE="$REPO_ROOT/scripts/pilot-harness.Dockerfile"
 # Собирается на каждый вызов, без ручной проверки "нужна ли пересборка"
 # — кеш слоёв BuildKit сам решает, что переиспользовать, и при полном
@@ -126,7 +141,9 @@ HARNESS_DOCKERFILE="$REPO_ROOT/scripts/pilot-harness.Dockerfile"
 # эмпирически на этом хосте). Не специфика конкретно этого образа —
 # общий эффект containerd-стора с buildx, для локальных однократных
 # сборок provenance/SBOM не несут пользы.
-docker build --provenance=false --sbom=false -t "$HARNESS_IMAGE" -f "$HARNESS_DOCKERFILE" "$REPO_ROOT/scripts" >&2
+docker build --provenance=false --sbom=false \
+  --build-arg CLAUDE_CODE_VERSION="$PILOT_CLAUDE_CODE_VERSION" \
+  -t "$HARNESS_IMAGE" -f "$HARNESS_DOCKERFILE" "$REPO_ROOT/scripts" >&2
 
 # Прежний блок чистки хостового Docker-демона от ресурсов `syncbox*` /
 # `workspace-*` (эталонная реализация, прошлые прогоны) убран вместе с
@@ -307,9 +324,12 @@ printf '{"container_wall_ms": %s, "claude_exit": %s}\n' \
 # NUL-заполненный файл правильного размера, если запись не сброшена до
 # `--rm` teardown — так entrypoint-копия вышла 516 КБ нулей на
 # переигровке тикета 10 (2026-09-03, docs/incidents/2026-09-03-dind-bash-missing/).
+# LC_ALL=C у tr: head -c режет UTF-8 посреди символа (русский текст
+# промпта), и BSD tr на macOS в UTF-8-локали падает с «Illegal byte
+# sequence» — под pipefail валидный транскрипт считался битым.
 _valid_transcript() {
   [ -s "$1" ] || return 1
-  head -c 4096 "$1" | tr -d '\0' | grep -q '[^[:space:]]' || return 1
+  head -c 4096 "$1" | LC_ALL=C tr -d '\0' | grep -q '[^[:space:]]' || return 1
   python3 - "$1" <<'PY' 2>/dev/null
 import json, sys
 for line in open(sys.argv[1], errors="replace"):
