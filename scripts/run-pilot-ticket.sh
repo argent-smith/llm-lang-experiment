@@ -222,6 +222,28 @@ WALL_START_MS="$(python3 -c 'import time; print(int(time.time() * 1000))')"
 # сеть контейнера allowlist-ом реестров пакетов, проверить
 # диагностическим прогоном; затем удалить lib-open-web-guard.sh и его
 # вызовы в трёх скриптах.
+#
+# PILOT_MODEL — точный ID модели (по умолчанию claude-sonnet-5, как в
+# основной кампании); алиасы отвергаются по тому же принципу, что и в
+# CLAUDE.md, «Не делать». PILOT_EFFORT — уровень effort (по умолчанию
+# xhigh, как в основной кампании); передаётся явно на каждый вызов, не
+# остаётся на дефолт CLI. PILOT_DISALLOW_WEB_TOOLS=1 добавляет
+# --disallowedTools WebFetch,WebSearch — закрывает веб-инструменты, но не
+# curl из Bash, поэтому гард open-web остаётся.
+PILOT_MODEL="${PILOT_MODEL:-claude-sonnet-5}"
+if ! [[ "$PILOT_MODEL" =~ ^claude-[a-z]+-[0-9]+(-[0-9]+)*$ ]]; then
+  echo "run-pilot-ticket.sh: PILOT_MODEL=$PILOT_MODEL — нужен точный ID модели (например claude-fable-5-1), не алиас" >&2
+  exit 2
+fi
+PILOT_EFFORT="${PILOT_EFFORT:-xhigh}"
+case "$PILOT_EFFORT" in
+  low|medium|high|xhigh|max) : ;;
+  *) echo "run-pilot-ticket.sh: PILOT_EFFORT=$PILOT_EFFORT — ожидается low|medium|high|xhigh|max" >&2; exit 2 ;;
+esac
+EXTRA_CLAUDE_ARGS=()
+if [ "${PILOT_DISALLOW_WEB_TOOLS:-}" = "1" ]; then
+  EXTRA_CLAUDE_ARGS+=(--disallowedTools "WebFetch,WebSearch")
+fi
 docker run --rm -i \
   --privileged \
   -v "$PILOT_DIR:/workspace:rw" \
@@ -230,11 +252,12 @@ docker run --rm -i \
   --env-file "$ENV_FILE" \
   "$HARNESS_IMAGE" \
   claude -p \
-    --model claude-sonnet-5 \
-    --effort xhigh \
+    --model "$PILOT_MODEL" \
+    --effort "$PILOT_EFFORT" \
     --safe-mode \
     --dangerously-skip-permissions \
     --output-format json \
+    ${EXTRA_CLAUDE_ARGS[@]+"${EXTRA_CLAUDE_ARGS[@]}"} \
   <"$PROMPT_FILE" \
   >"${OUTPUT_PREFIX}.json" \
   2>"${OUTPUT_PREFIX}.stderr.log" \

@@ -14,6 +14,7 @@ MD_FILES := README.md CLAUDE.md docs/SYNCBOX-SPEC.md docs/RUNBOOK.md \
 	docs/PILOT-COMPARISON-all-languages.md \
 	docs/MARKET-PREVALENCE-experiment-languages.md \
 	docs/REPLAY-CAMPAIGN-2026-09.md \
+	docs/fable-ruby/README.md \
 	docs/TALK-OUTLINE-rubyrussia-2026.md \
 	docs/TALK-ANNOUNCEMENT-rubyrussia-2026.md \
 	"docs/CFP RubyRussia 2026.md" \
@@ -71,7 +72,8 @@ shellcheck: ## shellcheck по bash-скриптам acceptance/ и scripts/
 		acceptance/reference-impl/_docker.sh \
 		scripts/run-pilot-ticket.sh scripts/run-gates.sh scripts/run-pilot-loop.sh \
 		scripts/run-pilot-replay.sh scripts/lib-open-web-guard.sh \
-		scripts/pilot-harness-entrypoint.sh scripts/build-base-images-tar.sh
+		scripts/pilot-harness-entrypoint.sh scripts/build-base-images-tar.sh \
+		scripts/run-fable-ruby.sh
 
 .PHONY: markdownlint
 markdownlint: ## markdownlint по документации

@@ -18,6 +18,9 @@
 #   --languages "python javascript typescript ruby"   (по умолч. эти 4)
 #   --tickets   "1 2 3 4 5 6 7 8 9 10 11"             (по умолч. 1..11)
 #   --pilot-root <dir>     per-language pilot-директории (по умолч. pilot-runs-live)
+#   --prompt-dir <dir>     брать initial-промпты из <dir>/<lang>/ticket-<N>-prompt.txt
+#                          вместо архива (для языковых тегов без архива, например
+#                          ruby3-fable — см. docs/fable-ruby/README.md)
 #   --out-root   <dir>     логи кампании (по умолч. <pilot-root>/.replay-<UTC-timestamp>)
 #   --checkpoint <file>    (по умолч. <out-root>/checkpoint.json)
 #   --max-iters <n>        -> run-pilot-loop.sh (по умолч. 4)
@@ -73,6 +76,7 @@ LOOP_SH="$REPO_ROOT/scripts/run-pilot-loop.sh"
 LANGUAGES="python javascript typescript ruby"
 TICKETS="1 2 3 4 5 6 7 8 9 10 11"
 PILOT_ROOT="$REPO_ROOT/pilot-runs-live"
+PROMPT_DIR=""
 OUT_ROOT=""
 CHECKPOINT=""
 MAX_ITERS=4
@@ -94,6 +98,7 @@ while [ $# -gt 0 ]; do
     --languages)        LANGUAGES="${2:?}"; shift 2 ;;
     --tickets)          TICKETS="${2:?}"; shift 2 ;;
     --pilot-root)       PILOT_ROOT="$2"; shift 2 ;;
+    --prompt-dir)       PROMPT_DIR="$(cd "${2:?}" && pwd)" || exit 2; shift 2 ;;
     --out-root)         OUT_ROOT="$2"; shift 2 ;;
     --checkpoint)       CHECKPOINT="$2"; shift 2 ;;
     --max-iters)        MAX_ITERS="${2:?}"; shift 2 ;;
@@ -109,7 +114,7 @@ while [ $# -gt 0 ]; do
     --force-clean)      DO_FORCE_CLEAN=1; shift ;;
     --check-prompts)    DO_CHECK_PROMPTS=1; shift ;;
     --dry-run)          DO_DRYRUN=1; shift ;;
-    -h|--help)          sed -n '2,60p' "$0"; exit 0 ;;
+    -h|--help)          sed -n '2,62p' "$0"; exit 0 ;;
     *) echo "run-pilot-replay.sh: неизвестный аргумент: $1" >&2; exit 2 ;;
   esac
 done
@@ -148,6 +153,11 @@ is_initial_prompt() {
 resolve_prompt() {
   # печатает путь к initial-промпту для (lang=$1, ticket=$2); rc1 если не найден
   local lang="$1" n="$2" cano p
+  if [ -n "$PROMPT_DIR" ]; then
+    p="$PROMPT_DIR/$lang/ticket-$n-prompt.txt"
+    if is_initial_prompt "$p"; then echo "$p"; return 0; fi
+    return 1
+  fi
   cano="$(python3 -c "import json; m=json.load(open('$MANIFEST')); print(m['languages'].get('$lang',{}).get('tickets',{}).get('$n',''))" 2>/dev/null)"
   if [ -n "$cano" ] && [ -f "$REPO_ROOT/$cano/prompt.txt" ] && is_initial_prompt "$REPO_ROOT/$cano/prompt.txt"; then
     echo "$REPO_ROOT/$cano/prompt.txt"; return 0
