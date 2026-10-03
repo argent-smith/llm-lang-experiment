@@ -20,7 +20,7 @@
 #   --pilot-root <dir>     per-language pilot-директории (по умолч. pilot-runs-live)
 #   --prompt-dir <dir>     брать initial-промпты из <dir>/<lang>/ticket-<N>-prompt.txt
 #                          вместо архива (для языковых тегов без архива, например
-#                          ruby3-fable — см. docs/fable-ruby/README.md)
+#                          ruby3-opus — см. docs/opus-ruby/README.md)
 #   --out-root   <dir>     логи кампании (по умолч. <pilot-root>/.replay-<UTC-timestamp>)
 #   --checkpoint <file>    (по умолч. <out-root>/checkpoint.json)
 #   --max-iters <n>        -> run-pilot-loop.sh (по умолч. 4)

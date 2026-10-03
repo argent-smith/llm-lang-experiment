@@ -1,27 +1,27 @@
-# Кампания Fable 5.1 × Ruby 3 / Ruby 4
+# Кампания Opus 5.5 × Ruby 3 / Ruby 4
 
 Ответвление основного эксперимента. Переменная — не язык, а версия Ruby
-при фиксированной модели `claude-fable-5-1`. Бэклог тот же (тикеты 1–11),
+при фиксированной модели `claude-opus-5-5`. Бэклог тот же (тикеты 1–11),
 харнесс тот же (DinD, авто-луп, гейты), отличия перечислены ниже.
 
 ## Ячейки
 
-| Тег языка     | Ruby   | Базовый образ |
-| ------------- | ------ | ------------- |
-| `ruby3-fable` | 3.3.12 | `ruby:3.3.12` |
-| `ruby4-fable` | 4.0.7  | `ruby:4.0.7`  |
+| Тег языка    | Ruby   | Базовый образ |
+| ------------ | ------ | ------------- |
+| `ruby3-opus` | 3.3.12 | `ruby:3.3.12` |
+| `ruby4-opus` | 4.0.7  | `ruby:4.0.7`  |
 
 Ruby 3 — тот же, что в основной кампании: там агент на Sonnet 5 во всех
 11 канонических тикетах выбрал `FROM ruby:3.3` (полный образ, не slim), в
 транскриптах — `ruby 3.3.12`. Ruby 4 — последний релиз на 2026-10-03.
 Оба образа полные и закреплены точной версией, чтобы ячейки отличались
 только версией Ruby. Тег языка — имя pilot-директории, поэтому
-архивы ложатся в `docs/pilot-runs/ruby3-fable/` и
-`docs/pilot-runs/ruby4-fable/` и не смешиваются с `docs/pilot-runs/ruby/`.
+архивы ложатся в `docs/pilot-runs/ruby3-opus/` и
+`docs/pilot-runs/ruby4-opus/` и не смешиваются с `docs/pilot-runs/ruby/`.
 
 ## Отличия от основной кампании
 
-- **Модель:** `claude-fable-5-1` вместо `claude-sonnet-5`.
+- **Модель:** `claude-opus-5-5` вместо `claude-sonnet-5`.
 - **Effort:** `high` вместо `xhigh`.
 - **Веб-инструменты:** `--disallowedTools WebFetch,WebSearch`. `curl` из
   Bash по-прежнему открыт, поэтому гард `PILOT_ACK_OPEN_WEB` остаётся, а
@@ -36,13 +36,13 @@ Ruby 3 — тот же, что в основной кампании: там аг
 Предпосылки — как для основного харнесса (`docs/RUNBOOK.md`): Docker,
 `python3`, `scripts/pilot-harness.env` с `CLAUDE_CODE_OAUTH_TOKEN`
 (подписка, `claude setup-token`). В подписке должна быть доступна
-Fable 5.1 в Claude Code.
+Opus 5.5 в Claude Code.
 
 ```sh
 scripts/build-base-images-tar.sh                          # один раз: предзагрузка образов, включая ruby:3.3.12 и ruby:4.0.7
-PILOT_ACK_OPEN_WEB=1 scripts/run-fable-ruby.sh --check-prompts
-PILOT_ACK_OPEN_WEB=1 scripts/run-fable-ruby.sh --dry-run
-PILOT_ACK_OPEN_WEB=1 scripts/run-fable-ruby.sh            # кампания: 22 ячейки
+PILOT_ACK_OPEN_WEB=1 scripts/run-opus-ruby.sh --check-prompts
+PILOT_ACK_OPEN_WEB=1 scripts/run-opus-ruby.sh --dry-run
+PILOT_ACK_OPEN_WEB=1 scripts/run-opus-ruby.sh            # кампания: 22 ячейки
 ```
 
 При исчерпании оконного лимита подписки (`429`) кампания сама ждёт сброса;
@@ -54,7 +54,7 @@ PILOT_ACK_OPEN_WEB=1 scripts/run-fable-ruby.sh            # кампания: 22
 открыта, и закрыты только встроенные веб-инструменты:
 
 ```sh
-scripts/check-web-access.py docs/pilot-runs/ruby3-fable docs/pilot-runs/ruby4-fable
+scripts/check-web-access.py docs/pilot-runs/ruby3-opus docs/pilot-runs/ruby4-opus
 ```
 
 FAIL — признак контаминации (маркеры мета-репозитория, вызов
@@ -68,8 +68,8 @@ GitHub и opam за документацией библиотек.
 Промпты пересобираются так:
 
 ```sh
-scripts/make-pinned-prompts.py --source-lang ruby --target-lang ruby3-fable --version "Ruby 3.3.12" --image ruby:3.3.12
-scripts/make-pinned-prompts.py --source-lang ruby --target-lang ruby4-fable --version "Ruby 4.0.7" --image ruby:4.0.7
+scripts/make-pinned-prompts.py --source-lang ruby --target-lang ruby3-opus --version "Ruby 3.3.12" --image ruby:3.3.12
+scripts/make-pinned-prompts.py --source-lang ruby --target-lang ruby4-opus --version "Ruby 4.0.7" --image ruby:4.0.7
 ```
 
 ## Ограничения

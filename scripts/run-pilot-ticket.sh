@@ -232,7 +232,7 @@ WALL_START_MS="$(python3 -c 'import time; print(int(time.time() * 1000))')"
 # curl из Bash, поэтому гард open-web остаётся.
 PILOT_MODEL="${PILOT_MODEL:-claude-sonnet-5}"
 if ! [[ "$PILOT_MODEL" =~ ^claude-[a-z]+-[0-9]+(-[0-9]+)*$ ]]; then
-  echo "run-pilot-ticket.sh: PILOT_MODEL=$PILOT_MODEL — нужен точный ID модели (например claude-fable-5-1), не алиас" >&2
+  echo "run-pilot-ticket.sh: PILOT_MODEL=$PILOT_MODEL — нужен точный ID модели (например claude-opus-5-5), не алиас" >&2
   exit 2
 fi
 PILOT_EFFORT="${PILOT_EFFORT:-xhigh}"

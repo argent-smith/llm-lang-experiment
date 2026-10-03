@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Генерирует initial-промпты тикетов с зафиксированной версией языка —
-для кампаний, где переменная не язык, а его версия (docs/fable-ruby/).
+для кампаний, где переменная не язык, а его версия (docs/opus-ruby/).
 
-    scripts/make-pinned-prompts.py --source-lang ruby --target-lang ruby4-fable \\
+    scripts/make-pinned-prompts.py --source-lang ruby --target-lang ruby4-opus \\
         --version "Ruby 4.0" --image ruby:4.0-slim [--tickets "1 2 ... 11"] \\
-        [--out docs/fable-ruby/prompts]
+        [--out docs/opus-ruby/prompts]
 
 Источник — тот же initial-промпт, что берёт run-pilot-replay.sh:
 канонический из docs/pilot-runs/manifest.json, а если там фикс-промпт —
@@ -61,7 +61,7 @@ def main() -> int:
     ap.add_argument("--version", required=True)
     ap.add_argument("--image", required=True)
     ap.add_argument("--tickets", default="1 2 3 4 5 6 7 8 9 10 11")
-    ap.add_argument("--out", default=str(REPO_ROOT / "docs/fable-ruby/prompts"))
+    ap.add_argument("--out", default=str(REPO_ROOT / "docs/opus-ruby/prompts"))
     args = ap.parse_args()
 
     pin = PIN_TEMPLATE.format(version=args.version, image=args.image)

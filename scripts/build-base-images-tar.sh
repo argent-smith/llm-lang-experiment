@@ -22,7 +22,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 # Базовые образы 4 языков доклада (Python/JS/TS/Ruby) плюс alpine для
 # node --test обёртки JS. Не-докладные языки (Go/Scala/OCaml) на DinD
 # ещё не гоняются — добавить сюда, когда дойдут. ruby:3.3.12 и
-# ruby:4.0.7 — для кампании Fable 5.1 × Ruby 3/4 (docs/fable-ruby/README.md).
+# ruby:4.0.7 — для кампании Opus 5.5 × Ruby 3/4 (docs/opus-ruby/README.md).
 IMAGES=(
   python:3.12-slim
   node:22-alpine

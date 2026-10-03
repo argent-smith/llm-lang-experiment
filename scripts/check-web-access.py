@@ -6,7 +6,7 @@
     scripts/check-web-access.py [--strict] <путь>...
 
 <путь> — transcript.jsonl, архивная сессия (docs/pilot-runs/<lang>/ticket-<N>/<session>/)
-или любая директория выше (например docs/pilot-runs/ruby4-fable) — внутри
+или любая директория выше (например docs/pilot-runs/ruby4-opus) — внутри
 ищутся все transcript.jsonl.
 
 Уровни находок:
