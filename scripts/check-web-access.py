@@ -49,7 +49,7 @@ CODE_HOSTING = re.compile(r"\b(?:[a-z0-9-]+\.)*(?:github\.com|githubusercontent\
 REGISTRIES = re.compile(
     r"(^|\.)(rubygems\.org|docker\.io|docker\.com|npmjs\.org|npmjs\.com|pypi\.org|pythonhosted\.org)$", re.I
 )
-RESERVED_TLDS = {"invalid", "example", "test", "local", "localhost", "internal"}
+RESERVED_TLDS = {"invalid", "example", "test", "local", "localhost", "internal", "lan", "home", "localdomain"}
 RESERVED_DOMAINS = re.compile(r"(^|\.)example\.(com|org|net)$", re.I)
 
 
