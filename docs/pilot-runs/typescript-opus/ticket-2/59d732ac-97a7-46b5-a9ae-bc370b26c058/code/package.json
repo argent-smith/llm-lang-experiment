@@ -1,0 +1,20 @@
+{
+  "name": "syncbox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted file storage with sync: HTTP server + CLI client",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:test": "tsc -p tsconfig.json",
+    "test": "node --test --test-reporter=spec dist/test/",
+    "start": "node dist/src/main.js"
+  },
+  "devDependencies": {
+    "@types/node": "~20.19.43",
+    "typescript": "~5.9.3"
+  }
+}

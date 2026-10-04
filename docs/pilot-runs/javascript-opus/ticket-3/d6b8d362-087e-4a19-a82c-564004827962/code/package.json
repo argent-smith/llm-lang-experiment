@@ -1,0 +1,17 @@
+{
+  "name": "syncbox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted file storage with sync: HTTP server + CLI client",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "bin": {
+    "syncbox-server": "src/server-main.js"
+  },
+  "scripts": {
+    "start": "node src/server-main.js",
+    "test": "node --test"
+  }
+}

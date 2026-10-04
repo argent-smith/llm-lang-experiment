@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Starts the Syncbox server in a Docker container (via docker compose) in the
+# foreground of the current process.
+#
+#   run-server --data-dir <path> [--port <n>]
+#
+# Falls back to SYNCBOX_DATA_DIR / SYNCBOX_PORT; flags take precedence. The
+# data dir is a host path: it is created if missing and bind-mounted into the
+# container. The port is published on 127.0.0.1 (override the interface with
+# SYNCBOX_PUBLISH_ADDR, e.g. 0.0.0.0).
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  echo "Usage: run-server --data-dir <path> [--port <n>]" >&2
+}
+
+die() {
+  echo "run-server: $*" >&2
+  usage
+  exit 2
+}
+
+data_dir=""
+port=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --data-dir) [[ $# -ge 2 ]] || die "--data-dir requires a value"; data_dir="$2"; shift 2 ;;
+    --data-dir=*) data_dir="${1#*=}"; shift ;;
+    --port) [[ $# -ge 2 ]] || die "--port requires a value"; port="$2"; shift 2 ;;
+    --port=*) port="${1#*=}"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+
+data_dir="${data_dir:-${SYNCBOX_DATA_DIR:-}}"
+port="${port:-${SYNCBOX_PORT:-8080}}"
+
+[[ -n "$data_dir" ]] || die "--data-dir is required (or set SYNCBOX_DATA_DIR)"
+if ! [[ "$port" =~ ^[0-9]{1,5}$ ]] || (( 10#$port < 1 || 10#$port > 65535 )); then
+  die "invalid port: '$port' (expected an integer 1-65535)"
+fi
+port=$((10#$port))
+
+# Create the directory as the invoking user (otherwise the Docker daemon would
+# create it owned by root) and resolve it to an absolute path for the mount.
+mkdir -p -- "$data_dir"
+data_dir="$(cd -- "$data_dir" && pwd -P)"
+
+export SYNCBOX_HOST_DATA_DIR="$data_dir"
+export SYNCBOX_PORT="$port"
+export SYNCBOX_UID="$(id -u)"
+export SYNCBOX_GID="$(id -g)"
+export SYNCBOX_PUBLISH_ADDR="${SYNCBOX_PUBLISH_ADDR:-127.0.0.1}"
+
+# One compose project per port: concurrent servers on different ports don't
+# touch each other's containers, and a container orphaned by a SIGKILLed
+# wrapper is simply recreated by the next start on the same port.
+project="$(basename "$repo" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_\n-' '-')"
+project="${project%$'\n'}-server-$port"
+compose=(docker compose --project-directory "$repo" -f "$repo/compose.yaml" -p "$project")
+
+# `compose up` (unlike `compose run`) stops the container gracefully on
+# SIGINT/SIGTERM, but signals sent to this script have to be forwarded to it.
+# --build is a no-op on a warm cache and picks up source changes otherwise.
+# set -m puts compose in its own process group, so a terminal Ctrl-C or a
+# signal to our whole group reaches it once (via forward) rather than twice,
+# which compose would treat as "force kill".
+set -m
+"${compose[@]}" up --build --no-log-prefix --abort-on-container-exit --exit-code-from server server &
+compose_pid=$!
+
+stopping=0
+forward() {
+  stopping=1
+  kill -"$1" "$compose_pid" 2>/dev/null || true
+}
+trap 'forward TERM' TERM
+trap 'forward INT' INT
+trap 'forward HUP' HUP
+
+# `wait` returns early when a trapped signal arrives; keep waiting until
+# compose itself is gone.
+while :; do
+  status=0
+  wait "$compose_pid" || status=$?
+  kill -0 "$compose_pid" 2>/dev/null || break
+done
+trap - TERM INT HUP
+
+"${compose[@]}" down --timeout 10 >/dev/null 2>&1 || true
+
+# A shutdown we were asked for is a clean exit.
+if (( stopping )); then
+  exit 0
+fi
+exit "$status"

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Usage: run-tests
+#
+# Runs the whole Syncbox test suite inside Docker via docker compose.
+# Exits non-zero if any test fails.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE=(docker compose --project-directory "$ROOT" -f "$ROOT/compose.yaml")
+
+# Build output is shown only if the build fails.
+if ! build_log="$("${COMPOSE[@]}" build --quiet test 2>&1)"; then
+  echo "$build_log" >&2
+  echo "run-tests: docker compose build failed" >&2
+  exit 1
+fi
+
+exec "${COMPOSE[@]}" run --rm -T --quiet-pull test
