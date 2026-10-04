@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Runs the Syncbox client inside Docker (via docker compose).
+#
+#   run-client <push|pull|sync|status> <dir> --server <url>
+#
+# --server falls back to SYNCBOX_SERVER. <dir> is bind-mounted into the
+# container; the container uses the host's network, so the server URL means
+# the same as it does here. Exits with the client's status.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  echo "Usage: run-client <push|pull|sync|status> <dir> --server <url>" >&2
+  exit 2
+}
+
+die() {
+  echo "run-client: $*" >&2
+  usage
+}
+
+server="${SYNCBOX_SERVER:-}"
+positional=()
+
+while (($#)); do
+  case "$1" in
+    --server) (($# >= 2)) || die "--server requires a value"; server="$2"; shift 2 ;;
+    --server=*) server="${1#*=}"; shift ;;
+    -h | --help) usage ;;
+    --) shift; positional+=("$@"); break ;;
+    -*) die "unknown option: $1" ;;
+    *) positional+=("$1"); shift ;;
+  esac
+done
+
+((${#positional[@]} >= 1)) || die "missing command"
+command="${positional[0]}"
+case "$command" in
+  push | pull | sync | status) ;;
+  *) die "unknown command: $command" ;;
+esac
+((${#positional[@]} >= 2)) || die "missing <dir>"
+((${#positional[@]} == 2)) || die "unexpected argument: ${positional[2]}"
+dir="${positional[1]}"
+[[ -n "$dir" ]] || die "missing <dir>"
+[[ -n "$server" ]] || die "--server (or SYNCBOX_SERVER) is required"
+
+if [[ ! -e "$dir" ]]; then
+  echo "run-client: $dir: no such directory" >&2
+  exit 1
+elif [[ ! -d "$dir" ]]; then
+  echo "run-client: $dir: not a directory" >&2
+  exit 1
+fi
+
+export SYNCBOX_HOST_SYNC_DIR="$(cd -- "$dir" && pwd -P)"
+export SYNCBOX_UID="$(id -u)" SYNCBOX_GID="$(id -g)"
+
+compose=(docker compose --project-directory "$root" -f "$root/compose.yaml")
+
+# `docker compose run` does not forward SIGTERM to the container and leaves it
+# running when killed, so stop our container explicitly on shutdown signals.
+container="syncbox-client-$$"
+child=""
+stopping=""
+
+stop_container() {
+  # Retry briefly in case the signal arrived before the container was created.
+  for _ in $(seq 50); do
+    docker stop --time 10 "$container" >/dev/null 2>&1 && return 0
+    kill -0 "$child" 2>/dev/null || return 0
+    sleep 0.2
+  done
+}
+
+on_signal() {
+  trap '' TERM INT HUP
+  stopping=1
+  if [[ -n "$child" ]]; then stop_container; fi
+  return 0
+}
+
+trap on_signal TERM INT HUP
+
+"${compose[@]}" build --quiet client >&2
+[[ -z "$stopping" ]] || exit 130
+
+# -T: no pseudo-TTY, so the client's stdout and stderr stay separate streams.
+"${compose[@]}" run --rm -T --name "$container" client "$command" /sync --server "$server" &
+child=$!
+if [[ -n "$stopping" ]]; then stop_container; fi
+
+while kill -0 "$child" 2>/dev/null; do
+  wait "$child" || true
+done
+status=0
+wait "$child" || status=$?
+[[ -z "$stopping" ]] || exit 130
+exit "$status"

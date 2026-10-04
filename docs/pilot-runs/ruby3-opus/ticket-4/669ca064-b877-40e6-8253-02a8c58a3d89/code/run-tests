@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Runs the whole test suite inside Docker (via docker compose).
+# Exits non-zero if any test fails.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+export SYNCBOX_UID="$(id -u)" SYNCBOX_GID="$(id -g)"
+
+compose=(docker compose --project-directory "$root" -f "$root/compose.yaml")
+"${compose[@]}" build --quiet tests >&2
+exec "${compose[@]}" run --rm tests

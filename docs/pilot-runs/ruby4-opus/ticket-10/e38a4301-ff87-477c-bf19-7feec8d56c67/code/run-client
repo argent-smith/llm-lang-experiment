@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Runs the Syncbox client inside Docker (via docker compose).
+#
+#   run-client <push|pull|status|sync> <dir> --server <url>
+#
+# SYNCBOX_SERVER is used when --server is absent. <dir> is bind-mounted into
+# the container (at /sync) and the client is given that path; everything else
+# is forwarded to it as is, and the client validates it. The directory is
+# mounted writable only for pull and sync, which change it. The container uses
+# the host's network, so the server URL means the same as on the host. The
+# client's exit code, stdout and stderr are passed through.
+set -euo pipefail
+
+source "$(dirname -- "${BASH_SOURCE[0]}")/scripts/compose.sh"
+
+usage="Usage: run-client <push|pull|status|sync> <dir> --server <url>"
+mount_point=/sync
+
+usage_error() {
+  echo "run-client: $*" >&2
+  echo "$usage" >&2
+  exit 2
+}
+
+# The client's own grammar, just enough to find the command and <dir> (the
+# first two positional arguments) among the rest: --server is the only option
+# with a value.
+args=()
+command=""
+dir=""
+positional=0
+options_done=false
+while (($#)); do
+  if ! $options_done; then
+    case "$1" in
+      --server) (($# >= 2)) || usage_error "missing argument: --server"; args+=("$1" "$2"); shift 2; continue ;;
+      -h | --help) echo "$usage"; exit 0 ;;
+      --) options_done=true; args+=("$1"); shift; continue ;;
+      -?*) args+=("$1"); shift; continue ;;
+    esac
+  fi
+  positional=$((positional + 1))
+  if ((positional == 1)); then
+    command="$1"
+    args+=("$1")
+  elif ((positional == 2)); then
+    dir="$1"
+    args+=("$mount_point")
+  else
+    args+=("$1")
+  fi
+  shift
+done
+
+((positional >= 2)) || usage_error "missing directory"
+[[ -n "$dir" ]] || usage_error "directory must not be empty"
+if [[ ! -d "$dir" ]]; then
+  echo "run-client: not a directory: $dir" >&2
+  exit 1
+fi
+
+export SYNCBOX_HOST_CLIENT_DIR="$(cd -- "$dir" && pwd -P)"
+if [[ "$command" == pull || "$command" == sync ]]; then
+  export SYNCBOX_CLIENT_DIR_READ_ONLY=false
+else
+  export SYNCBOX_CLIENT_DIR_READ_ONLY=true
+fi
+
+compose_run client "${args[@]}"

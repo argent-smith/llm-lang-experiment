@@ -1,0 +1,37 @@
+name: syncbox
+
+x-app: &app
+  build: .
+  image: syncbox-ruby:dev
+  init: true
+  # Run as the host user so files in bind-mounted directories stay owned by them.
+  user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+  environment:
+    HOME: /tmp
+
+services:
+  server:
+    <<: *app
+    command: ["bin/syncbox-server", "--data-dir", "/data", "--port", "${SYNCBOX_PORT:-8080}"]
+    ports:
+      - "${SYNCBOX_PUBLISH_ADDR:-127.0.0.1}:${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    volumes:
+      - type: bind
+        source: "${SYNCBOX_HOST_DATA_DIR:-./data}"
+        target: /data
+
+  # `run client <command> /sync --server <url>`; run-client mounts the local
+  # directory at /sync. Host networking, so that the server URL means the same
+  # inside the container as on the host (e.g. a server on 127.0.0.1:<port>).
+  client:
+    <<: *app
+    entrypoint: ["bin/syncbox"]
+    network_mode: host
+    volumes:
+      - type: bind
+        source: "${SYNCBOX_HOST_SYNC_DIR:-./sync}"
+        target: /sync
+
+  tests:
+    <<: *app
+    command: ["bundle", "exec", "rake", "test"]
