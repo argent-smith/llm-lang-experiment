@@ -54,7 +54,8 @@ RESERVED_DOMAINS = re.compile(r"(^|\.)example\.(com|org|net)$", re.I)
 
 
 def is_local(host: str) -> bool:
-    h = host.strip("[]").rstrip(".;,").lower()
+    # Обратные слэши — из регулярок в коде (http://127\.0\.0\.1), не часть имени.
+    h = host.replace("\\", "").strip("[]").rstrip(".;,").lower()
     if not h or "$" in h or "{" in h:
         return True  # переменная оболочки — не разрешить статически
     if h in ("localhost", "host.docker.internal", "gateway.docker.internal"):

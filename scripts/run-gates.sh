@@ -130,7 +130,10 @@ if [ "$MODE_SMOKE" != "skip" ]; then
       smoke_failed="$(echo "$line" | sed -E 's/.*пройдено, ([0-9]+) провалено.*/\1/')"
       smoke_total="$(echo "$line"  | sed -E 's/.*из ([0-9]+).*/\1/')"
     fi
-    smoke_failed_steps="$(grep -oE '^Провалено: .*' "$OUT_DIR/gate-smoke.log" | sed 's/^Провалено: //' \
+    # `|| true` у grep: при полностью зелёном смоке строк «Провалено:» нет,
+    # grep выходит с 1, под pipefail срабатывал `|| echo '[]'` после уже
+    # напечатанного python'ом [] — и в gates.json уходило "[]\n[]".
+    smoke_failed_steps="$({ grep -oE '^Провалено: .*' "$OUT_DIR/gate-smoke.log" || true; } | sed 's/^Провалено: //' \
       | python3 -c 'import sys,json; s=sys.stdin.read().strip(); print(json.dumps([x for x in s.split() ] if s else []))' || echo '[]')"
     cleanup_docker
   else
