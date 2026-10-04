@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Генерирует initial-промпты тикетов с зафиксированной версией языка —
-для кампаний, где переменная не язык, а его версия (docs/opus-ruby/).
+для кампаний с закреплённой версией (docs/opus-ruby/, docs/opus-langs/).
 
     scripts/make-pinned-prompts.py --source-lang ruby --target-lang ruby4-opus \\
         --version "Ruby 4.0" --image ruby:4.0-slim [--tickets "1 2 ... 11"] \\
@@ -65,7 +65,7 @@ def main() -> int:
     args = ap.parse_args()
 
     pin = PIN_TEMPLATE.format(version=args.version, image=args.image)
-    out_dir = Path(args.out) / args.target_lang
+    out_dir = Path(args.out).resolve() / args.target_lang
     out_dir.mkdir(parents=True, exist_ok=True)
     for n in args.tickets.split():
         src = resolve(args.source_lang, n)

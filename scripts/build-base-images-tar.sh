@@ -23,9 +23,14 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 # node --test обёртки JS. Не-докладные языки (Go/Scala/OCaml) на DinD
 # ещё не гоняются — добавить сюда, когда дойдут. ruby:3.3.12 и
 # ruby:4.0.7 — для кампании Opus 5.5 × Ruby 3/4 (docs/opus-ruby/README.md).
+# node:20-alpine и node:20-bookworm-slim — образы, которые агент на деле
+# выбрал для JavaScript и TypeScript в основной кампании; закреплены в
+# промптах кампании Opus 5.5 × Python/JS/TS (docs/opus-langs/README.md).
 IMAGES=(
   python:3.12-slim
   node:22-alpine
+  node:20-alpine
+  node:20-bookworm-slim
   ruby:3.3-slim
   ruby:3.3.12
   ruby:4.0.7
