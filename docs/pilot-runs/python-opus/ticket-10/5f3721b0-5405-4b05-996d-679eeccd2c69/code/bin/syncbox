@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""Syncbox client: ``syncbox <push|pull|sync|status> <dir> --server <url>``."""
+
+import sys
+
+from syncbox.client.cli import main
+
+sys.exit(main())

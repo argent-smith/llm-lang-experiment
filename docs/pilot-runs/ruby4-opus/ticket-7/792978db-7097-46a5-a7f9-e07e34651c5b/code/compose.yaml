@@ -1,0 +1,51 @@
+# Single source of truth for building and running Syncbox in Docker.
+# The run-server / run-client / run-tests wrappers only set the variables below
+# and call `docker compose`; nothing about images, mounts or ports lives in them.
+#
+#   SYNCBOX_HOST_DATA_DIR    host directory mounted as the server's data dir
+#   SYNCBOX_PORT             port the server listens on (host and container)
+#   SYNCBOX_HOST_CLIENT_DIR  host directory the client syncs, mounted at /sync
+#   SYNCBOX_SERVER           passed through to the client (its --server default)
+#   SYNCBOX_UID/GID          user the containers run as, so files written to
+#                            bind mounts are owned by the invoking host user
+
+name: syncbox
+
+x-app: &app
+  build: .
+  image: syncbox:dev
+  init: true
+  user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+
+services:
+  server:
+    <<: *app
+    environment:
+      SYNCBOX_DATA_DIR: /data
+      SYNCBOX_PORT: "${SYNCBOX_PORT:-8080}"
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    volumes:
+      - type: bind
+        source: "${SYNCBOX_HOST_DATA_DIR:-./data}"
+        target: /data
+    command: ["bin/syncbox-server"]
+
+  client:
+    <<: *app
+    # The host's network: --server URLs such as http://127.0.0.1:8080 mean
+    # the same inside the container as they do for the user who typed them.
+    network_mode: host
+    environment:
+      - SYNCBOX_SERVER
+    volumes:
+      # push only reads the directory. run-client always sets the source.
+      - type: bind
+        source: "${SYNCBOX_HOST_CLIENT_DIR:-./tmp/client-dir-not-set}"
+        target: /sync
+        read_only: true
+    entrypoint: ["bin/syncbox"]
+
+  test:
+    <<: *app
+    command: ["bundle", "exec", "rake", "test"]

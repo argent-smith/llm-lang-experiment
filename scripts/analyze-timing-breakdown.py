@@ -291,7 +291,10 @@ def analyze(archive_dir: Path, verbose=False):
                     if name == "Bash":
                         command = call["input"].get("command", "")
                         if BUILD_TOPLEVEL_RE.search(command):
-                            stdout = (rec.get("toolUseResult") or {}).get("stdout", "")
+                            # toolUseResult — строка, а не объект, когда вызов
+                            # инструмента завершился ошибкой.
+                            tur = rec.get("toolUseResult")
+                            stdout = tur.get("stdout", "") if isinstance(tur, dict) else ""
                             i_s, w_s, u_s = classify_buildkit_output(stdout)
                             classified_sum = i_s + w_s + u_s
                             if classified_sum > 0:

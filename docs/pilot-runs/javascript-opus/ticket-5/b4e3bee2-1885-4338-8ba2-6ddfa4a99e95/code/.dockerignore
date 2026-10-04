@@ -1,0 +1,5 @@
+# Only what the image needs goes into the build context.
+*
+!package.json
+!src/
+!test/

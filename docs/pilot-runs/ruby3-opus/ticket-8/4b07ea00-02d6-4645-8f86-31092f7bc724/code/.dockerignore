@@ -1,0 +1,7 @@
+.git
+.dockerignore
+Dockerfile
+compose.yaml
+tmp
+data
+sync

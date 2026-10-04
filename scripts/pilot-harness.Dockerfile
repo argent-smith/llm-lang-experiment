@@ -88,7 +88,11 @@ RUN apk add --no-cache \
       ca-certificates=20241121-r1 \
       git=2.47.2-r0
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.238
+# Версия по умолчанию — та, на которой шла основная кампания; другая
+# передаётся из run-pilot-ticket.sh (PILOT_CLAUDE_CODE_VERSION) и
+# собирается в отдельный тег образа.
+ARG CLAUDE_CODE_VERSION=2.1.238
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 # dockerd обязан стартовать под root; полезная нагрузка (claude -p) — нет.
 RUN adduser -D -u 1000 node

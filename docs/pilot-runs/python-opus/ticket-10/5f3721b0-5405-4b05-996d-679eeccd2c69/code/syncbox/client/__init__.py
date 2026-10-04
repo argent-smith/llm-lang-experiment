@@ -1,0 +1,1 @@
+"""Syncbox CLI client."""

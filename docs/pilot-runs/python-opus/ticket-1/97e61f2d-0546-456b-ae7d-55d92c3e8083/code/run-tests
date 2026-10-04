@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Usage: run-tests
+#
+# Runs the full test suite inside Docker (via docker compose). Exits non-zero
+# if any test fails.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+export SYNCBOX_COMPOSE_UID="$(id -u)"
+export SYNCBOX_COMPOSE_GID="$(id -g)"
+
+compose=(docker compose --file "$root/compose.yaml")
+"${compose[@]}" build --quiet tests
+exec "${compose[@]}" run --rm --no-TTY --interactive=false tests "$@"

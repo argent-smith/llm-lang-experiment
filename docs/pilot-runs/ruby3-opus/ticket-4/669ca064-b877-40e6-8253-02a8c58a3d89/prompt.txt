@@ -1,0 +1,44 @@
+Внешняя проверка текущей реализации (тикеты 1-4 уже сделаны в этом же репозитории) нашла несоответствия. Нужно исправить их по существу, не трогая ничего сверх этого.
+
+Штатные тесты (run-tests) не прошли. Последние строки:
+
+    ..........................................#<Thread:0x0000ffff6b758af8 /app/test/delete_blob_test.rb:153 run> terminated with exception (report_on_exception is true):
+    /app/lib/syncbox/server/store.rb:80:in `rescue in put': key cannot be stored as a file (EEXIST) (Syncbox::Server::InvalidKeyError)
+    	from /app/lib/syncbox/server/store.rb:71:in `put'
+    	from /app/test/delete_blob_test.rb:156:in `block (3 levels) in test_concurrent_put_and_delete_under_shared_directories'
+    	from <internal:numeric>:237:in `times'
+    	from /app/test/delete_blob_test.rb:154:in `block (2 levels) in test_concurrent_put_and_delete_under_shared_directories'
+    /usr/local/lib/ruby/3.3.0/fileutils.rb:402:in `mkdir': File exists @ dir_s_mkdir - /tmp/d20261003-9-1e1dj0/data/blobs/shared (Errno::EEXIST)
+    	from /usr/local/lib/ruby/3.3.0/fileutils.rb:402:in `fu_mkdir'
+    	from /usr/local/lib/ruby/3.3.0/fileutils.rb:380:in `block (2 levels) in mkdir_p'
+    	from /usr/local/lib/ruby/3.3.0/fileutils.rb:378:in `reverse_each'
+    	from /usr/local/lib/ruby/3.3.0/fileutils.rb:378:in `block in mkdir_p'
+    	from /usr/local/lib/ruby/3.3.0/fileutils.rb:370:in `each'
+    	from /usr/local/lib/ruby/3.3.0/fileutils.rb:370:in `mkdir_p'
+    	from /app/lib/syncbox/server/store.rb:72:in `put'
+    	from /app/test/delete_blob_test.rb:156:in `block (3 levels) in test_concurrent_put_and_delete_under_shared_directories'
+    	from <internal:numeric>:237:in `times'
+    	from /app/test/delete_blob_test.rb:154:in `block (2 levels) in test_concurrent_put_and_delete_under_shared_directories'
+    E............................
+    
+    Finished in 3.093228s, 22.9534 runs/s, 2746.6454 assertions/s.
+    
+      1) Error:
+    DeleteBlobTest#test_concurrent_put_and_delete_under_shared_directories:
+    Syncbox::Server::InvalidKeyError: key cannot be stored as a file (EEXIST)
+        lib/syncbox/server/store.rb:80:in `rescue in put'
+        lib/syncbox/server/store.rb:71:in `put'
+        test/delete_blob_test.rb:156:in `block (3 levels) in test_concurrent_put_and_delete_under_shared_directories'
+        <internal:numeric>:237:in `times'
+        test/delete_blob_test.rb:154:in `block (2 levels) in test_concurrent_put_and_delete_under_shared_directories'
+    
+    71 runs, 8496 assertions, 0 failures, 1 errors, 0 skips
+    rake aborted!
+    Command failed with status (1)
+    /usr/local/bundle/gems/rake-13.4.2/exe/rake:27:in `<top (required)>'
+    /usr/local/bin/bundle:25:in `load'
+    /usr/local/bin/bundle:25:in `<main>'
+    Tasks: TOP => test
+    (See full trace by running task with --trace)
+
+После фикса добавь тесты на эти случаи и перепроверь сам — подними сервер через run-server и прогони run-tests. Не меняй ничего, что не относится к перечисленным несоответствиям.

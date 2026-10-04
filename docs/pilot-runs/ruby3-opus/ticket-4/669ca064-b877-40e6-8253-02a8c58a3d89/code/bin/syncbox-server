@@ -1,0 +1,18 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../lib/syncbox/server"
+
+$stdout.sync = true
+
+begin
+  config = Syncbox::Server::Config.parse(ARGV)
+  config.prepare_data_dir!
+rescue Syncbox::Server::ConfigError => e
+  warn "syncbox-server: #{e.message}"
+  warn "Usage: syncbox-server --data-dir <path> [--port <n>]"
+  exit 2
+end
+
+puts "syncbox-server #{Syncbox::VERSION}: data dir #{config.data_dir}, port #{config.port}"
+Syncbox::Server::Runner.run(config)

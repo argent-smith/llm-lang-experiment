@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../lib/syncbox/client"
+
+$stdout.sync = true
+
+begin
+  exit Syncbox::Client::CLI.run(ARGV)
+rescue Interrupt
+  exit 130
+end
