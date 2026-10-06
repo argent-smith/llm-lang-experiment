@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Usage: run-client <push|pull|sync|status> <dir> --server <url>
+#
+# Runs the Syncbox client inside Docker (via docker compose). <dir> is a host
+# directory bind-mounted into the container; all other arguments go to the
+# client unchanged. The container uses the host's network, so <url> means the
+# same as on the host. Falls back to SYNCBOX_SERVER when --server is omitted.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+    sed -n '2,7s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+}
+
+die() {
+    echo "run-client: error: $1" >&2
+    echo "usage: run-client <push|pull|sync|status> <dir> --server <url>" >&2
+    exit 2
+}
+
+fail() {
+    echo "run-client: error: $1" >&2
+    exit 1
+}
+
+# <dir> is the second positional argument (after the command). Find it to
+# mount it, and hand the client the path it has inside the container.
+args=("$@")
+dir_index=
+positional=0
+options_done=0
+help=0
+skip_value=0
+for i in "${!args[@]}"; do
+    arg="${args[i]}"
+    if ((skip_value)); then skip_value=0; continue; fi
+    if ((!options_done)); then
+        case "$arg" in
+            --) options_done=1; continue ;;
+            --server) skip_value=1; continue ;;
+            -h|--help) help=1; continue ;;
+            -?*) continue ;;  # --server=<url>, or unknown: the client reports it
+        esac
+    fi
+    if ((++positional == 2)); then dir_index=$i; break; fi
+done
+
+if [[ -z "$dir_index" ]]; then
+    ((help)) && { usage; exit 0; }
+    ((positional)) || die "missing command"
+    die "missing <dir>"
+fi
+
+dir="${args[dir_index]}"
+[[ -e "$dir" ]] || fail "'$dir' does not exist"
+[[ -d "$dir" ]] || fail "'$dir' is not a directory"
+# Absolute, as compose would resolve a relative path against the project
+# directory rather than the caller's cwd.
+dir="$(cd -- "$dir" && pwd -P)"
+args[dir_index]=/work
+
+export SYNCBOX_COMPOSE_CLIENT_DIR="$dir"
+export SYNCBOX_COMPOSE_UID="$(id -u)"
+export SYNCBOX_COMPOSE_GID="$(id -g)"
+
+# A compose project per invocation, so that on a signal exactly this run's
+# container can be found and stopped, while concurrent runs are left alone.
+compose=(docker compose --file "$root/compose.yaml" --project-name "syncbox-client-$$-$RANDOM")
+
+# `compose run` neither forwards SIGTERM/SIGINT to the container nor stops
+# when it gets them, so run it in the background and, on a signal, stop the
+# container ourselves (`down` only reaches one-off containers as orphans).
+started=0
+status=0
+on_signal() {
+    status=$((128 + $1))
+    ((started)) || exit "$status"  # still building: nothing to stop
+    "${compose[@]}" down --remove-orphans --timeout 5 >/dev/null 2>&1 || true
+}
+trap 'on_signal 1' HUP
+trap 'on_signal 2' INT
+trap 'on_signal 15' TERM
+
+# Build output (e.g. compose hints) goes to stderr: stdout is the client's.
+"${compose[@]}" build --quiet client >&2
+started=1
+"${compose[@]}" run --rm --no-TTY --interactive=false client "${args[@]}" &
+child=$!
+
+wait "$child" && rc=0 || rc=$?
+# wait returns early when a trapped signal arrives; keep waiting until compose exits.
+while kill -0 "$child" 2>/dev/null; do
+    wait "$child" && rc=0 || rc=$?
+done
+((status)) || status=$rc
+exit "$status"

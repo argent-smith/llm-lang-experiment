@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Runs the Syncbox server inside Docker (via docker compose), in the foreground.
+#
+#   run-server --data-dir <path> [--port <n>]
+#
+# SYNCBOX_DATA_DIR / SYNCBOX_PORT are used when the flags are absent. The data
+# directory is created if missing and bind-mounted into the container; the
+# port is published on the host under the same number. Stop with Ctrl-C or
+# SIGTERM.
+set -euo pipefail
+
+source "$(dirname -- "${BASH_SOURCE[0]}")/scripts/compose.sh"
+
+usage="Usage: run-server --data-dir <path> [--port <n>]"
+
+usage_error() {
+  echo "run-server: $*" >&2
+  echo "$usage" >&2
+  exit 2
+}
+
+data_dir="${SYNCBOX_DATA_DIR:-}"
+port="${SYNCBOX_PORT:-}"
+while (($#)); do
+  case "$1" in
+    --data-dir) (($# >= 2)) || usage_error "missing argument: --data-dir"; data_dir="$2"; shift 2 ;;
+    --data-dir=*) data_dir="${1#*=}"; shift ;;
+    --port) (($# >= 2)) || usage_error "missing argument: --port"; port="$2"; shift 2 ;;
+    --port=*) port="${1#*=}"; shift ;;
+    -h | --help) echo "$usage"; exit 0 ;;
+    *) usage_error "unexpected argument: $1" ;;
+  esac
+done
+
+# The server validates its configuration itself; these checks only make sure
+# we can build the bind mount and the port mapping from the values.
+[[ -n "$data_dir" ]] || usage_error "data directory is required: pass --data-dir <path> or set SYNCBOX_DATA_DIR"
+port="${port:-8080}"
+if ! [[ "$port" =~ ^[0-9]{1,5}$ ]] || ((10#$port < 1 || 10#$port > 65535)); then
+  usage_error "invalid port \"$port\": expected an integer in 1..65535"
+fi
+
+# Create the directory as the invoking user (Docker would create it as root).
+mkdir -p -- "$data_dir"
+data_dir="$(cd -- "$data_dir" && pwd -P)"
+
+export SYNCBOX_HOST_DATA_DIR="$data_dir"
+export SYNCBOX_PORT="$((10#$port))"
+
+compose_foreground server

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Runs the implementation's own test suite inside Docker (spec convention:
+# <repo>/run-tests, no arguments, non-zero exit if any test fails).
+set -euo pipefail
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+
+docker compose build --quiet test
+exec docker compose run --rm --no-deps test

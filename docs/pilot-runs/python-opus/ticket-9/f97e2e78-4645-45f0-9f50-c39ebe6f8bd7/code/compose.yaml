@@ -1,0 +1,59 @@
+# Single source of truth for building and running Syncbox in Docker.
+# Use the wrappers in the repo root (run-server, run-client, run-tests) rather than
+# calling these services directly: they fill in the SYNCBOX_COMPOSE_*
+# variables below from their own arguments.
+
+name: syncbox
+
+x-common: &common
+  init: true  # PID 1 that forwards signals and reaps children
+  user: "${SYNCBOX_COMPOSE_UID:-1000}:${SYNCBOX_COMPOSE_GID:-1000}"
+
+services:
+  server:
+    <<: *common
+    build:
+      context: .
+      target: runtime
+    image: syncbox-server:dev
+    # Default bridge: no per-project network is created (and leaked) per run.
+    network_mode: bridge
+    environment:
+      SYNCBOX_DATA_DIR: /data
+      SYNCBOX_PORT: "${SYNCBOX_COMPOSE_PORT:-8080}"
+    ports:
+      - "${SYNCBOX_COMPOSE_PUBLISH_ADDR:-127.0.0.1}:${SYNCBOX_COMPOSE_PORT:-8080}:${SYNCBOX_COMPOSE_PORT:-8080}"
+    volumes:
+      - type: bind
+        source: "${SYNCBOX_COMPOSE_DATA_DIR:-./data}"
+        target: /data
+
+  client:
+    <<: *common
+    build:
+      context: .
+      target: client
+    image: syncbox-client:dev
+    # The host's network stack: --server means the same as it does on the
+    # host, e.g. http://127.0.0.1:8080 reaches a server started by run-server.
+    network_mode: host
+    environment:
+      SYNCBOX_SERVER:  # passed through from the caller when set
+    volumes:
+      # The local directory being synced; pull writes into it (as the
+      # caller's user, see x-common). Read-only for commands that only read.
+      - type: bind
+        source: "${SYNCBOX_COMPOSE_CLIENT_DIR:-./sync}"
+        target: /work
+        read_only: ${SYNCBOX_COMPOSE_CLIENT_READ_ONLY:-false}
+
+  tests:
+    <<: *common
+    build:
+      context: .
+      target: test
+    image: syncbox-tests:dev
+    # Tests only talk to servers they start on loopback.
+    network_mode: none
+    environment:
+      HOME: /tmp

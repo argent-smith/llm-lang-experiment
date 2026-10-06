@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Usage: run-client <push|pull|status|sync> <dir> --server <url>
+#   (or SYNCBOX_SERVER in the environment)
+#
+# Runs the Syncbox CLI client inside a Docker container via docker compose.
+# <dir> is bind-mounted into the container; the container shares the host's
+# network, so --server is resolved exactly as it would be on the host.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE=(docker compose --project-directory "$ROOT" -f "$ROOT/compose.yaml")
+
+usage() {
+  cat <<USAGE
+Usage: run-client <command> <dir> --server <url>
+
+Commands:
+  push    Upload files from <dir> that are missing on the server or differ from it
+  pull    Download files from the server that are missing in <dir> or differ (not implemented yet)
+  status  Show what push/pull would transfer, changing nothing (not implemented yet)
+  sync    Two-way sync between <dir> and the server (not implemented yet)
+
+Options:
+  --server <url>  Base URL of the Syncbox server, e.g. http://127.0.0.1:8080 (required).
+                  Env: SYNCBOX_SERVER
+  -h, --help      Show this help and exit.
+USAGE
+}
+
+die() {
+  echo "run-client: $*" >&2
+  echo >&2
+  usage >&2
+  exit 2
+}
+
+server="${SYNCBOX_SERVER:-}"
+positional=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --server)
+      [[ $# -ge 2 ]] || die "--server requires a value"
+      server="$2"
+      shift 2 ;;
+    --server=*) server="${1#*=}"; shift ;;
+    --) shift; positional+=("$@"); break ;;
+    -?*) die "unknown option: $1" ;;
+    *) positional+=("$1"); shift ;;
+  esac
+done
+
+[[ ${#positional[@]} -ge 1 ]] || die "a command is required"
+command="${positional[0]}"
+case "$command" in
+  push|pull|status|sync) ;;
+  *) die "unknown command: $command" ;;
+esac
+[[ ${#positional[@]} -ge 2 && -n "${positional[1]}" ]] || die "$command requires a directory"
+[[ ${#positional[@]} -le 2 ]] || die "unexpected argument: ${positional[2]}"
+dir="${positional[1]}"
+[[ -n "$server" ]] || die "server URL is required: pass --server <url> or set SYNCBOX_SERVER"
+
+# The directory is bind-mounted, so it has to exist on the host; resolve it
+# to an absolute path for the mount.
+if [[ ! -d "$dir" ]]; then
+  echo "run-client: not a directory: $dir" >&2
+  exit 1
+fi
+dir="$(cd -- "$dir" && pwd -P)"
+
+export SYNCBOX_COMPOSE_SYNC_DIR="$dir"
+# Run as the invoking user, so the client can read exactly what they can.
+export SYNCBOX_COMPOSE_UID="$(id -u)"
+export SYNCBOX_COMPOSE_GID="$(id -g)"
+
+# Build (a cached no-op when nothing changed) so the container always runs
+# the current source. Output is kept quiet unless the build fails.
+if ! build_log="$("${COMPOSE[@]}" build --quiet client 2>&1)"; then
+  echo "$build_log" >&2
+  echo "run-client: docker compose build failed" >&2
+  exit 1
+fi
+
+# `docker compose run` relays neither SIGINT nor SIGTERM to the container.
+# On a terminal it therefore gets a TTY, through which Ctrl+C reaches the
+# client directly. Otherwise no TTY, so stdout and stderr stay apart.
+run_opts=(--rm --quiet-pull)
+if ! [[ -t 0 && -t 1 && -t 2 ]]; then
+  run_opts+=(-T)
+fi
+
+# --server=<url> keeps a value that starts with "-" from reading as a flag.
+exec "${COMPOSE[@]}" run "${run_opts[@]}" client "$command" /sync "--server=$server"

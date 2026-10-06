@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Runs the Syncbox server in the foreground inside Docker (via docker compose).
+#
+#   run-server --data-dir <path> [--port <n>]
+#
+# Falls back to SYNCBOX_DATA_DIR / SYNCBOX_PORT; the port defaults to 8080.
+# The data dir is bind-mounted into the container and the port is published
+# on ${SYNCBOX_PUBLISH_ADDR:-127.0.0.1}.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  echo "Usage: run-server --data-dir <path> [--port <n>]" >&2
+  exit 2
+}
+
+die() {
+  echo "run-server: $*" >&2
+  usage
+}
+
+data_dir="${SYNCBOX_DATA_DIR:-}"
+port="${SYNCBOX_PORT:-8080}"
+
+while (($#)); do
+  case "$1" in
+    --data-dir) (($# >= 2)) || die "--data-dir requires a value"; data_dir="$2"; shift 2 ;;
+    --data-dir=*) data_dir="${1#*=}"; shift ;;
+    --port) (($# >= 2)) || die "--port requires a value"; port="$2"; shift 2 ;;
+    --port=*) port="${1#*=}"; shift ;;
+    -h | --help) usage ;;
+    *) die "unexpected argument: $1" ;;
+  esac
+done
+
+[[ -n "$data_dir" ]] || die "--data-dir (or SYNCBOX_DATA_DIR) is required"
+[[ "$port" =~ ^[0-9]{1,5}$ ]] && ((10#$port >= 1 && 10#$port <= 65535)) ||
+  die "--port must be an integer between 1 and 65535, got '$port'"
+
+# Create the data dir as the invoking user (Docker would create it as root).
+mkdir -p -- "$data_dir"
+data_dir="$(cd -- "$data_dir" && pwd -P)"
+
+export SYNCBOX_HOST_DATA_DIR="$data_dir"
+export SYNCBOX_PORT="$((10#$port))"
+export SYNCBOX_UID="$(id -u)" SYNCBOX_GID="$(id -g)"
+
+compose=(docker compose --project-directory "$root" -f "$root/compose.yaml")
+
+# `docker compose run` does not forward SIGTERM to the container and leaves it
+# running when killed, so stop our container explicitly on shutdown signals.
+container="syncbox-server-${SYNCBOX_PORT}-$$"
+child=""
+stopping=""
+
+stop_container() {
+  # Retry briefly in case the signal arrived before the container was created.
+  for _ in $(seq 50); do
+    docker stop --time 10 "$container" >/dev/null 2>&1 && return 0
+    kill -0 "$child" 2>/dev/null || return 0
+    sleep 0.2
+  done
+}
+
+on_signal() {
+  trap '' TERM INT HUP
+  stopping=1
+  if [[ -n "$child" ]]; then stop_container; fi
+  # Plain `return` in a trap handler would yield the interrupted command's status.
+  return 0
+}
+
+trap on_signal TERM INT HUP
+
+"${compose[@]}" build --quiet server >&2
+[[ -z "$stopping" ]] || exit 0
+
+"${compose[@]}" run --rm --service-ports --name "$container" server &
+child=$!
+if [[ -n "$stopping" ]]; then stop_container; fi
+
+# `wait` returns early (status > 128) when a trapped signal arrives; keep
+# waiting until compose exits, then report its exit status.
+while kill -0 "$child" 2>/dev/null; do
+  wait "$child" || true
+done
+wait "$child"

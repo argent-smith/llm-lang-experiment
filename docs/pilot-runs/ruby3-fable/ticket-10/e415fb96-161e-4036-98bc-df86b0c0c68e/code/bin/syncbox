@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Точка входа CLI-клиента Syncbox (исполняется внутри Docker-контейнера,
+# см. run-client в корне репозитория).
+
+$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+
+require "syncbox/client"
+
+# Прогресс печатается по мере работы, а не одним куском в конце, даже если
+# stdout — пайп (так его читает docker compose).
+$stdout.sync = true
+$stderr.sync = true
+
+begin
+  exit Syncbox::Client::CLI.run(ARGV)
+rescue Interrupt
+  warn "syncbox: interrupted"
+  exit 130
+end
