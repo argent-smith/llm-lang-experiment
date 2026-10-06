@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Syncbox server launcher (spec convention: <repo>/run-server --data-dir <path> --port <n>).
+#
+# Runs the server in the foreground inside a Docker container via docker compose.
+# Flags fall back to SYNCBOX_DATA_DIR / SYNCBOX_PORT; --port defaults to 8080.
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+Usage: run-server --data-dir <path> [--port <n>]
+
+Options:
+  --data-dir PATH   Storage root on the host (required; env SYNCBOX_DATA_DIR)
+  --port N          TCP port to listen on (default 8080; env SYNCBOX_PORT)
+  -h, --help        Show this help
+USAGE
+}
+
+die() {
+  echo "run-server: $*" >&2
+  usage >&2
+  exit 2
+}
+
+data_dir="${SYNCBOX_DATA_DIR:-}"
+port="${SYNCBOX_PORT:-}"
+
+while (($#)); do
+  case "$1" in
+    --data-dir)   [[ $# -ge 2 ]] || die "--data-dir requires a value"; data_dir="$2"; shift 2 ;;
+    --data-dir=*) data_dir="${1#*=}"; shift ;;
+    --port)       [[ $# -ge 2 ]] || die "--port requires a value"; port="$2"; shift 2 ;;
+    --port=*)     port="${1#*=}"; shift ;;
+    -h|--help)    usage; exit 0 ;;
+    *)            die "unknown argument: $1" ;;
+  esac
+done
+
+[[ -n "$data_dir" ]] || die "--data-dir is required (or set SYNCBOX_DATA_DIR)"
+port="${port:-8080}"
+[[ "$port" =~ ^[0-9]+$ ]] || die "invalid port '$port': must be an integer"
+port=$((10#$port))
+(( port >= 1 && port <= 65535 )) || die "invalid port '$port': must be in 1..65535"
+
+# Create the directory ourselves so Docker does not create it as root,
+# and resolve it to an absolute path for the bind mount.
+mkdir -p -- "$data_dir"
+data_dir="$(cd -- "$data_dir" && pwd -P)"
+
+export SYNCBOX_DATA_DIR="$data_dir"
+export SYNCBOX_PORT="$port"
+export SYNCBOX_UID="$(id -u)"
+export SYNCBOX_GID="$(id -g)"
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+
+docker compose build --quiet server
+
+# `run` (not `up`) so the container lives exactly as long as this process and
+# gets a unique name, allowing several servers on different ports in parallel.
+#
+# `docker compose run` does not reliably forward SIGTERM/SIGINT to the
+# container, so we keep it as a child, trap the signals ourselves and stop the
+# container by name (graceful: SIGTERM to the server, then SIGKILL after 15s).
+container="syncbox-server-${SYNCBOX_PORT}-$$"
+
+stop_container() {
+  trap - INT TERM HUP
+  docker stop -t 15 -- "$container" >/dev/null 2>&1 || true
+  docker rm -f -- "$container" >/dev/null 2>&1 || true
+}
+trap 'interrupted=1; stop_container' INT TERM HUP
+
+interrupted=0
+docker compose run --rm -T --service-ports --name "$container" server &
+compose_pid=$!
+
+# `wait` returns early when a trapped signal arrives; keep waiting until the
+# compose process has actually finished.
+status=0
+while :; do
+  if wait "$compose_pid"; then status=0; else status=$?; fi
+  kill -0 "$compose_pid" 2>/dev/null || break
+done
+
+# Safety net: if compose itself got the signal (e.g. Ctrl-C sent to the whole
+# process group) it may exit without cleaning up — make sure nothing lingers.
+stop_container
+
+if (( interrupted )); then
+  exit 0
+fi
+exit "$status"

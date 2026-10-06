@@ -38,6 +38,7 @@ def sess(d):
     tb = json.load(open(f"{d}/timing-breakdown.json")) if os.path.exists(f"{d}/timing-breakdown.json") else {}
     turns = r.get("num_turns", 0)
     tools, monitor = 0, False
+    mix = dict(bash=0, edit=0, read=0, write=0, docker=0, curl=0, bg=0)
     if os.path.exists(f"{d}/transcript.jsonl"):
         for line in open(f"{d}/transcript.jsonl", errors="replace"):
             try:
@@ -50,6 +51,15 @@ def sess(d):
                     if b.get("type") == "tool_use":
                         tools += 1
                         monitor = monitor or b.get("name") == "Monitor"
+                        nm = b.get("name")
+                        if nm == "Bash":
+                            mix["bash"] += 1
+                            cmd = (b.get("input") or {}).get("command", "")
+                            mix["docker"] += 1 if re.search(r"\bdocker\b|run-server|run-tests|run-client", cmd) else 0
+                            mix["curl"] += 1 if re.search(r"\bcurl\b|wget\b", cmd) else 0
+                            mix["bg"] += 1 if (b.get("input") or {}).get("run_in_background") else 0
+                        elif nm in ("Edit", "Read", "Write"):
+                            mix[nm.lower()] += 1
     # num_turns = вызовы инструментов + 1; после фонового ожидания (Monitor)
     # result.json считает только последний отрезок сессии — берём транскрипт.
     fixed = tools + 1 > turns
@@ -57,7 +67,7 @@ def sess(d):
                 wall=(ht.get("container_wall_ms") or r.get("duration_ms", 0)) / 60000,
                 model=tb.get("model_ms", 0) / 60000, infra=tb.get("infra_ms", 0) / 60000, work=tb.get("work_ms", 0) / 60000,
                 tin=u.get("input_tokens", 0), cw=u.get("cache_creation_input_tokens", 0),
-                cr=u.get("cache_read_input_tokens", 0), out=u.get("output_tokens", 0), fixed=int(fixed))
+                cr=u.get("cache_read_input_tokens", 0), out=u.get("output_tokens", 0), fixed=int(fixed), **mix)
 
 
 def agg(ss):
@@ -129,6 +139,7 @@ def opus_run(lang):
             a["why"] = "контракт: " + "; ".join(fails) if fails else "штатные тесты не прошли"
         a["ntests"] = ntests(f"{root}/{lang}/ticket-{n}.iter{len(g)}.gates/gate-tests.log")
         a["last"] = L["iterations"][-1]["session"]
+        a["code"] = codestats(f"docs/pilot-runs/{lang}/ticket-{n}/{a['last']}/code")
         T[n] = a
     return dict(t=T, code=codestats(f"docs/pilot-runs/{lang}/ticket-11/{T['11']['last']}/code"), pauses=len(ck.get("pauses") or []))
 
@@ -146,6 +157,7 @@ def sonnet_run(lang):
                         abs(json.load(open(d + "/result.json"))["total_cost_usd"] + cc - AUTHOR_T1[lang]) < 0.006:
                     ds = [d] + ds
         T[n] = agg([sess(d) for d in ds])
+        T[n]["code"] = codestats(man[n] + "/code")
     cost, turns = sum(t["cost"] for t in T.values()), sum(t["turns"] for t in T.values())
     exp = AUTHOR_TOTALS[lang]
     if abs(cost - exp[0]) > 0.02 or turns != exp[1]:
@@ -164,6 +176,8 @@ RUNS = [
     ("rb-s", "Ruby", "Sonnet 5", "3.3", "s", lambda: sonnet_run("ruby")),
     ("rb3-o", "Ruby", "Opus 5.5", "3.3.12", "o", lambda: opus_run("ruby3-opus")),
     ("rb4-o", "Ruby", "Opus 5.5", "4.0.7", "o4", lambda: opus_run("ruby4-opus")),
+    ("rb3-f", "Ruby", "Fable 5.1", "3.3.12", "f", lambda: opus_run("ruby3-fable")),
+    ("rb4-f", "Ruby", "Fable 5.1", "4.0.7", "f4", lambda: opus_run("ruby4-fable")),
 ]
 D = {k: f() for k, *_, f in RUNS}
 META = {k: dict(lang=l, model=m, ver=v, cls=c) for k, l, m, v, c, _ in RUNS}
@@ -173,6 +187,10 @@ full = lambda k: f"{name(k)} · {META[k]['model']}"
 SONNET4 = ["py-s", "js-s", "ts-s", "rb-s"]
 OPUS4 = ["py-o", "js-o", "ts-o", "rb3-o"]
 OPUS5 = OPUS4 + ["rb4-o"]
+FABLE = ["rb3-f", "rb4-f"]
+OURS = OPUS5 + FABLE
+RUBY3 = ["rb-s", "rb3-o", "rb3-f"]
+RUBY4 = ["rb4-o", "rb4-f"]
 PAIRS = [("py-s", "py-o"), ("js-s", "js-o"), ("ts-s", "ts-o"), ("rb-s", "rb3-o")]
 
 
@@ -230,8 +248,8 @@ def grouped(title, keys, field, fmt, top, step):
 
 sw = lambda k: f'<b class="sw {META[k]["cls"]}"></b>'
 legend = ('<div class="legend"><span><b class="sw s"></b>Sonnet 5, effort xhigh (кампания автора)</span>'
-          '<span><b class="sw o"></b>Opus 5.5, effort high (наши кампании)</span>'
-          '<span><b class="sw o4"></b>Opus 5.5 на Ruby 4.0.7</span></div>')
+          '<span><b class="sw o"></b>Opus 5.5, effort high</span><span><b class="sw o4"></b>Opus 5.5 на Ruby 4.0.7</span>'
+          '<span><b class="sw f"></b>Fable 5.1, effort high</span><span><b class="sw f4"></b>Fable 5.1 на Ruby 4.0.7</span></div>')
 
 tot_rows = "".join(
     f'<tr><td>{sw(k)}{e(name(k))}</td><td>{META[k]["model"]}</td><td class="n">{tot(k, "cost"):.2f}</td><td class="n">{tot(k, "turns")}</td>'
@@ -240,8 +258,8 @@ tot_rows = "".join(
     for k in D)
 
 ratio_rows = "".join(
-    f'<tr><td>{e(name(o))} к {e(name(s))}</td>' + "".join(f'<td class="n">×{tot(o, f) / tot(s, f):.2f}</td>' for f in ("cost", "turns", "out", "cr", "wall", "model", "work")) + "</tr>"
-    for s, o in PAIRS + [("rb-s", "rb4-o"), ("rb3-o", "rb4-o")])
+    f'<tr><td>{sw(o)}{e(full(o))} к {e(full(s))}</td>' + "".join(f'<td class="n">×{tot(o, f) / tot(s, f):.2f}</td>' for f in ("cost", "turns", "out", "cr", "wall", "model", "work")) + "</tr>"
+    for s, o in PAIRS + [("rb-s", "rb3-f"), ("rb3-o", "rb3-f"), ("rb3-o", "rb4-o"), ("rb3-f", "rb4-f")])
 
 
 def rel_table(keys, title):
@@ -264,7 +282,7 @@ def rank_table(keys, title):
 
 
 def grid_table(keys):
-    head = "<tr><th>Тикет</th>" + "".join(f'<th class="n">{e(name(k))}</th>' for k in keys) + "</tr>"
+    head = "<tr><th>Тикет</th>" + "".join(f'<th class="n">{e(full(k))}</th>' for k in keys) + "</tr>"
     rows = ""
     for n in TICKETS:
         rows += f"<tr><td>т{n}</td>"
@@ -294,20 +312,90 @@ code_rows = "".join(
     f'<td class="n">{num(D[k]["code"]["test"])}</td><td class="n">{D[k]["code"]["test"] / max(D[k]["code"]["src"], 1):.1f}</td>'
     f'<td>{e(", ".join(D[k]["code"]["deps"]) or "нет")}</td></tr>' for k in D)
 
+def md_to_html(text):
+    """Минимальный markdown -> HTML: заголовки, таблицы, списки, абзацы, **жирный**, `код`."""
+    def inline(t):
+        t = e(t)
+        t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+        t = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", t)
+        return t
+    out, para, table, lst = [], [], [], None
+    def flush():
+        nonlocal para, table, lst
+        if para:
+            out.append("<p>" + inline(" ".join(para)) + "</p>"); para = []
+        if table:
+            rows = [r for r in table if not re.match(r"^\|?\s*:?-{2,}", r)]
+            cells = [[c.strip() for c in r.strip().strip("|").split("|")] for r in rows]
+            if cells:
+                out.append('<div class="tw"><table><tr>' + "".join(f"<th>{inline(c)}</th>" for c in cells[0]) + "</tr>" +
+                           "".join("<tr>" + "".join(f"<td>{inline(c)}</td>" for c in r) + "</tr>" for r in cells[1:]) + "</table></div>")
+            table = []
+        if lst:
+            out.append(f"<{lst[0]}>" + "".join(f"<li>{inline(i)}</li>" for i in lst[1]) + f"</{lst[0]}>"); lst = None
+    for line in text.splitlines():
+        if line.startswith("|"):
+            if para or lst: flush()
+            table.append(line); continue
+        m = re.match(r"^(#{1,4})\s+(.*)", line)
+        if m:
+            flush(); lvl = min(len(m.group(1)) + 2, 4)
+            out.append(f"<h{lvl}>{inline(m.group(2))}</h{lvl}>"); continue
+        m = re.match(r"^\s*(?:[-*]|\d+[.)])\s+(.*)", line)
+        if m:
+            if para or table: flush()
+            kind = "ol" if re.match(r"^\s*\d", line) else "ul"
+            if lst and lst[0] != kind: flush()
+            lst = lst or (kind, []); lst[1].append(m.group(1)); continue
+        if not line.strip():
+            flush(); continue
+        if table or lst: flush()
+        para.append(line.strip())
+    flush()
+    return "\n".join(out)
+
+
+IMPL_MD = REPO / "docs/fable-ruby/IMPLEMENTATION-COMPARISON.md"
+impl_html = md_to_html(IMPL_MD.read_text()) if IMPL_MD.exists() else "<p class='note'>Файл docs/fable-ruby/IMPLEMENTATION-COMPARISON.md не найден.</p>"
+
+
+def loc_table(keys):
+    head = "<tr><th>Тикет</th>" + "".join(f'<th class="n" colspan="2">{e(full(k))}</th>' for k in keys) + "</tr><tr><th></th>" + \
+        "".join('<th class="n">код</th><th class="n">тесты</th>' for _ in keys) + "</tr>"
+    rows = ""
+    for n in TICKETS:
+        rows += f"<tr><td>т{n}</td>" + "".join(
+            f'<td class="n">{num(D[k]["t"][n]["code"]["src"])}</td><td class="n">{num(D[k]["t"][n]["code"]["test"])}</td>' for k in keys) + "</tr>"
+    return f'<div class="tw"><table>{head}{rows}</table></div>'
+
+
+def mix_table(keys):
+    cols = [("bash", "Bash"), ("edit", "Edit"), ("read", "Read"), ("write", "Write"), ("docker", "из них Docker / run-*"), ("curl", "curl"), ("bg", "фоновые команды")]
+    head = "<tr><th>Прогон</th>" + "".join(f'<th class="n">{c}</th>' for _, c in cols) + '<th class="n">правок на вызов Bash</th></tr>'
+    rows = ""
+    for k in keys:
+        t = D[k]["t"]
+        v = {c: sum(t[n][c] for n in TICKETS) for c, _ in cols}
+        rows += f"<tr><td>{sw(k)}{e(full(k))}</td>" + "".join(f'<td class="n">{v[c]}</td>' for c, _ in cols) + \
+            f'<td class="n">{(v["edit"] + v["write"]) / max(v["bash"], 1):.2f}</td></tr>'
+    return f'<div class="tw"><table>{head}{rows}</table></div>'
+
+
 o_cost = sum(tot(k, "cost") for k in OPUS5)
+f_cost = sum(tot(k, "cost") for k in FABLE)
 s_cost = sum(tot(k, "cost") for k in SONNET4)
 ro_s, _ = ranks(SONNET4, "out")
 ro_o, _ = ranks(OPUS4, "out")
 cheapest = lambda keys: min(keys, key=lambda k: tot(k, "cost"))
 priciest = lambda keys: max(keys, key=lambda k: tot(k, "cost"))
-top_cost = 7
-top_turns = 140
+top_cost = int(max(D[k]["t"][n]["cost"] for k in D for n in TICKETS) / 2 + 1) * 2
+top_turns = int(max(D[k]["t"][n]["turns"] for k in D for n in TICKETS) / 20 + 1) * 20
 fixed_cells = [f"{full(k)}, тикет {n}" for k in D for n in TICKETS if D[k]["t"][n].get("fixed")]
 
 PAGE = f"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Syncbox: Sonnet 5 и Opus 5.5</title><style>
 body{{background:var(--agterm-background,Canvas);color:var(--agterm-foreground,CanvasText);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0}}
-.page{{--fg:var(--agterm-foreground,CanvasText);--s:var(--agterm-color-4,#2a78d6);--o:var(--agterm-color-5,#a44fc4);--o4:var(--agterm-color-3,#c08a12);
+.page{{--fg:var(--agterm-foreground,CanvasText);--s:var(--agterm-color-4,#2a78d6);--o:var(--agterm-color-5,#a44fc4);--o4:var(--agterm-color-3,#c08a12);--f:var(--agterm-color-6,#1a8f9c);--f4:var(--agterm-color-14,#4fb3bf);
 --muted:color-mix(in srgb,var(--fg) 62%,transparent);--line:color-mix(in srgb,var(--fg) 15%,transparent);--panel:color-mix(in srgb,var(--fg) 5%,transparent);
 max-width:1180px;margin:0 auto;padding:28px 24px 60px}}
 h1{{font-size:24px;margin:0 0 4px;line-height:1.25}} h2{{font-size:17px;margin:38px 0 6px;padding-top:18px;border-top:1px solid var(--line)}} h3{{font-size:13px;margin:0 0 10px;font-weight:600}}
@@ -318,7 +406,7 @@ p{{margin:6px 0;max-width:88ch}} .sub,.note{{color:var(--muted)}} .note{{font-si
 .grid2{{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px;margin:10px 0}}
 .hb{{display:grid;grid-template-columns:130px 1fr 76px;gap:10px;align-items:center;margin:4px 0}} .hl i{{display:block;font-style:normal;font-size:11px;color:var(--muted);line-height:1.1}}
 .ht{{height:12px}} .hf{{display:block;height:12px;border-radius:0 4px 4px 0;min-width:2px}} .hv{{text-align:right;font-variant-numeric:tabular-nums}}
-.s{{background:var(--s);fill:var(--s)}} .o{{background:var(--o);fill:var(--o)}} .o4{{background:var(--o4);fill:var(--o4)}}
+.s{{background:var(--s);fill:var(--s)}} .o{{background:var(--o);fill:var(--o)}} .o4{{background:var(--o4);fill:var(--o4)}} .f{{background:var(--f);fill:var(--f)}} .f4{{background:var(--f4);fill:var(--f4)}}
 .legend{{display:flex;flex-wrap:wrap;gap:6px 18px;margin:12px 0;font-size:12px}} .sw{{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}}
 svg{{width:100%;height:auto;display:block}} .grid{{stroke:var(--line);stroke-width:1}} .base{{stroke:var(--muted);stroke-width:1}} .ax{{fill:var(--muted);font-size:10px}} .it{{fill:var(--fg);font-size:9px}}
 svg path:hover{{opacity:.75}}
@@ -327,21 +415,21 @@ th{{color:var(--muted);font-weight:500}} td.n,th.n{{text-align:right;font-varian
 tr.sum td{{font-weight:600;border-top:1px solid var(--muted)}} .tag{{font-size:10px;border:1px solid var(--line);border-radius:3px;padding:0 3px;color:var(--muted)}}
 ul{{margin:6px 0;padding-left:20px;max-width:88ch}} li{{margin:3px 0}}
 </style></head><body><div class="page">
-<h1>Syncbox на четырёх языках: Sonnet 5 у автора и Opus 5.5 у нас</h1>
-<p class="sub">Эксперимент llm-lang-experiment: один проект, 11 тикетов с нуля на каждом языке, цикл «реализация → проверки → исправление». Кампания автора — 4–6 сентября 2026 (Sonnet 5, effort xhigh). Наши кампании — 3–4 октября 2026 (Opus 5.5, effort high): Ruby 3.3.12 и 4.0.7, затем Python, JavaScript и TypeScript.</p>
+<h1>Syncbox: Sonnet 5 у автора, Opus 5.5 и Fable 5.1 у нас</h1>
+<p class="sub">Эксперимент llm-lang-experiment: один проект, 11 тикетов с нуля на каждом языке, цикл «реализация → проверки → исправление». Кампания автора — 4–6 сентября 2026 (Sonnet 5, effort xhigh). Наши кампании: 3–4 октября 2026 — Opus 5.5 (effort high) на Ruby 3.3.12 и 4.0.7, затем на Python, JavaScript и TypeScript; 6 октября — Fable 5.1 (effort high) на Ruby 3.3.12 и 4.0.7.</p>
 
 <div class="tiles">
-<div class="tile"><b>55 / 55</b><span>ячеек сошлось на Opus 5.5 (5 прогонов × 11 тикетов); у автора на Sonnet 5 — 44 / 44</span></div>
-<div class="tile"><b>${o_cost:.2f}</b><span>все пять прогонов Opus по ценам API; четыре прогона Sonnet у автора — ${s_cost:.2f}</span></div>
+<div class="tile"><b>{11 * len(OURS)} / {11 * len(OURS)}</b><span>ячеек сошлось у нас: 5 прогонов Opus 5.5 и 2 прогона Fable 5.1; у автора на Sonnet 5 — 44 / 44</span></div>
+<div class="tile"><b>${o_cost:.2f} · ${f_cost:.2f}</b><span>Opus 5.5 (5 прогонов) · Fable 5.1 (2 прогона) по ценам API; Sonnet 5 у автора — ${s_cost:.2f}</span></div>
 <div class="tile"><b>{e(name(cheapest(OPUS4)))}</b><span>самый дешёвый язык на Opus 5.5 (${tot(cheapest(OPUS4), "cost"):.2f}); у автора на Sonnet 5 — {e(name(cheapest(SONNET4)))} (${tot(cheapest(SONNET4), "cost"):.2f})</span></div>
-<div class="tile"><b>0</b><span>обращений агента во внешний веб и 0 пауз из-за лимита за все наши кампании</span></div>
+<div class="tile"><b>{e(name(cheapest(RUBY3)))}: ${tot(cheapest(RUBY3), "cost"):.2f}</b><span>Ruby 3 дешевле всего на {e(META[cheapest(RUBY3)]["model"])}; Fable 5.1 — ${tot("rb3-f", "cost"):.2f}, в {tot("rb3-f", "cost") / tot("rb3-o", "cost"):.1f} раза дороже Opus 5.5</span></div>
 </div>
-<p>На обеих моделях агент закрыл весь бэклог на всех языках, так что различия — только в цене успеха. На Opus 5.5 порядок языков по стоимости: {", ".join(f"{e(name(k))} ${tot(k, 'cost'):.2f}" for k in sorted(OPUS4, key=lambda k: tot(k, "cost")))}. У автора на Sonnet 5: {", ".join(f"{e(name(k))} ${tot(k, 'cost'):.2f}" for k in sorted(SONNET4, key=lambda k: tot(k, "cost")))}. Это по одному прогону на ячейку (n = 1): наблюдения, а не выводы.</p>
+<p>На всех трёх моделях агент закрыл весь бэклог, так что различия — только в цене успеха и в том, как написан код (см. раздел «Реализация»). На Ruby 3 Fable 5.1 обошёлся в {tot("rb3-f", "cost") / tot("rb3-o", "cost"):.1f} раза дороже Opus 5.5 при сопоставимом числе ходов ({tot("rb3-f", "turns")} против {tot("rb3-o", "turns")}) и написал ещё больше кода и тестов. На Opus 5.5 порядок языков по стоимости: {", ".join(f"{e(name(k))} ${tot(k, 'cost'):.2f}" for k in sorted(OPUS4, key=lambda k: tot(k, "cost")))}. У автора на Sonnet 5: {", ".join(f"{e(name(k))} ${tot(k, 'cost'):.2f}" for k in sorted(SONNET4, key=lambda k: tot(k, "cost")))}. Это по одному прогону на ячейку (n = 1): наблюдения, а не выводы.</p>
 
 <h2>Конфигурация</h2>
 <div class="tw"><table><tr><th></th><th>Кампания автора</th><th>Наши кампании</th></tr>
-<tr><td>Модель / effort</td><td><code>claude-sonnet-5</code> / xhigh</td><td><code>claude-opus-5-5</code> / high</td></tr>
-<tr><td>Claude Code в харнессе</td><td>2.1.238</td><td>2.1.288 (Opus 5.5 требует от 2.1.280)</td></tr>
+<tr><td>Модель / effort</td><td><code>claude-sonnet-5</code> / xhigh</td><td><code>claude-opus-5-5</code> / high (четыре языка и Ruby 4); <code>claude-fable-5-1</code> / high (Ruby 3 и Ruby 4, промпты побайтно те же)</td></tr>
+<tr><td>Claude Code в харнессе</td><td>2.1.238</td><td>2.1.288 (новые модели требуют от 2.1.280)</td></tr>
 <tr><td>Версии и образы</td><td>в промпте не заданы; агент выбрал <code>python:3.12-slim</code>, <code>node:20-alpine</code>, <code>node:20-bookworm-slim</code>, <code>ruby:3.3</code></td><td>те же образы закреплены абзацем в конце каждого промпта; Ruby — точно <code>ruby:3.3.12</code>, плюс отдельный прогон на <code>ruby:4.0.7</code></td></tr>
 <tr><td>Предзагрузка образов</td><td>для Node 20 и Ruby образ скачивался во время прогона</td><td>все образы предзагружены</td></tr>
 <tr><td>Веб-инструменты агента</td><td>открыты (репозиторий был приватным)</td><td>WebFetch и WebSearch закрыты; сеть контейнера открыта, проверено по транскриптам</td></tr>
@@ -351,7 +439,7 @@ ul{{margin:6px 0;padding-left:20px;max-width:88ch}} li{{margin:3px 0}}
 <h2>Итоги по 11 тикетам</h2>
 {legend}
 <div class="grid2">
-{hbars("Стоимость по ценам API, $", "cost", lambda v: f"{v:.2f}", "Токен Opus 5.5 стоит вдвое дороже токена Sonnet 5. На подписке стоимость условная.")}
+{hbars("Стоимость по ценам API, $", "cost", lambda v: f"{v:.2f}", "Цена токена: Sonnet 5 — $2/$10, Opus 5.5 — $4/$20, Fable 5.1 — $10/$50 за 1M входных/выходных. На подписке стоимость условная.")}
 {hbars("Ходы модели", "turns", lambda v: f"{v:.0f}")}
 {hbars("Выходные токены", "out", num)}
 {hbars("Время, минуты", "wall", lambda v: f"{v:.1f}", "Полное время всех вызовов модели по тикету. В отчёте автора суммы времени меньше: по тикету 1 он учитывал только последнюю итерацию.")}
@@ -360,7 +448,7 @@ ul{{margin:6px 0;padding-left:20px;max-width:88ch}} li{{margin:3px 0}}
 {tot_rows}</table></div>
 <p class="note">«Модель / инфра / работа» — разбивка времени по транскрипту: генерация модели, загрузка образов и зависимостей, сборка и тесты.</p>
 
-<h3 style="margin-top:20px">Opus 5.5 относительно Sonnet 5 на том же языке</h3>
+<h3 style="margin-top:20px">Отношения между прогонами на одном языке</h3>
 <div class="tw"><table><tr><th></th><th class="n">$</th><th class="n">Ходы</th><th class="n">out-токены</th><th class="n">cache-read</th><th class="n">Время</th><th class="n">время модели</th><th class="n">время работы</th></tr>{ratio_rows}</table></div>
 
 <h2>Эффект языка: сравнение внутри каждой модели</h2>
@@ -376,20 +464,31 @@ ul{{margin:6px 0;padding-left:20px;max-width:88ch}} li{{margin:3px 0}}
 <h2>По тикетам: Sonnet 5 против Opus 5.5</h2>
 {legend}
 <div class="grid2">
-{grouped("Python: стоимость по тикетам, $", ["py-s", "py-o"], "cost", lambda v: f"{v:g}", top_cost, 1)}
-{grouped("JavaScript: стоимость по тикетам, $", ["js-s", "js-o"], "cost", lambda v: f"{v:g}", top_cost, 1)}
-{grouped("TypeScript: стоимость по тикетам, $", ["ts-s", "ts-o"], "cost", lambda v: f"{v:g}", top_cost, 1)}
-{grouped("Ruby: стоимость по тикетам, $", ["rb-s", "rb3-o", "rb4-o"], "cost", lambda v: f"{v:g}", top_cost, 1)}
+{grouped("Python: стоимость по тикетам, $", ["py-s", "py-o"], "cost", lambda v: f"{v:g}", top_cost, 2)}
+{grouped("JavaScript: стоимость по тикетам, $", ["js-s", "js-o"], "cost", lambda v: f"{v:g}", top_cost, 2)}
+{grouped("TypeScript: стоимость по тикетам, $", ["ts-s", "ts-o"], "cost", lambda v: f"{v:g}", top_cost, 2)}
+{grouped("Ruby 3: стоимость по тикетам, $", RUBY3, "cost", lambda v: f"{v:g}", top_cost, 2)}
+{grouped("Ruby 4: стоимость по тикетам, $", RUBY4, "cost", lambda v: f"{v:g}", top_cost, 2)}
 {grouped("Python: ходы по тикетам", ["py-s", "py-o"], "turns", lambda v: f"{v:.0f}", top_turns, 20)}
 {grouped("JavaScript: ходы по тикетам", ["js-s", "js-o"], "turns", lambda v: f"{v:.0f}", top_turns, 20)}
 {grouped("TypeScript: ходы по тикетам", ["ts-s", "ts-o"], "turns", lambda v: f"{v:.0f}", top_turns, 20)}
-{grouped("Ruby: ходы по тикетам", ["rb-s", "rb3-o", "rb4-o"], "turns", lambda v: f"{v:.0f}", top_turns, 20)}
+{grouped("Ruby 3: ходы по тикетам", RUBY3, "turns", lambda v: f"{v:.0f}", top_turns, 20)}
+{grouped("Ruby 4: ходы по тикетам", RUBY4, "turns", lambda v: f"{v:.0f}", top_turns, 20)}
 </div>
 <p class="note">Шкалы одинаковые во всех панелях одной метрики. ×N над столбцом — число вызовов модели на тикет. Точные значения — по наведению и в таблицах ниже.</p>
-<h3 style="margin-top:18px">Opus 5.5: $ · ходы · минуты</h3>
-{grid_table(OPUS5)}
+<h3 style="margin-top:18px">Opus 5.5 и Fable 5.1: $ · ходы · минуты</h3>
+{grid_table(OURS)}
 <h3 style="margin-top:18px">Sonnet 5 (автор): $ · ходы · минуты</h3>
 {grid_table(SONNET4)}
+
+<h2>Реализация: как модели решали тикеты</h2>
+<p>Ниже — качественное сравнение трёх реализаций на Ruby 3 (Sonnet 5, Opus 5.5, Fable 5.1) по снимкам кода после тикетов 1, 5, 6, 7 и 11, а затем числа: рост кода и тестов по тикетам и то, как агент работал с инструментами.</p>
+{impl_html}
+<h3 style="margin-top:18px">Строк кода и тестов после каждого тикета (Ruby)</h3>
+{loc_table(RUBY3 + RUBY4)}
+<h3 style="margin-top:18px">Как агент работал: вызовы инструментов за 11 тикетов</h3>
+{mix_table(list(D))}
+<p class="note">«Docker / run-*» — команды Bash, в которых агент собирал или запускал стенд (docker, run-server, run-tests, run-client); «curl» — ручные проверки HTTP. Для кампании автора посчитано по его транскриптам тем же способом.</p>
 
 <h2>Сходимость и исправления</h2>
 <div class="tw"><table><tr><th>Прогон</th><th class="n">Сошлось</th><th class="n">Вызовов модели</th><th>Тикеты с итерацией исправления</th><th class="n">Smoke после т11</th><th class="n">Тестов после т11</th></tr>{conv_rows}</table></div>
@@ -402,8 +501,9 @@ ul{{margin:6px 0;padding-left:20px;max-width:88ch}} li{{margin:3px 0}}
 <h2>Проверки после наших прогонов</h2>
 <ul>
 <li>Базовые образы: все сессии на закреплённых образах, агент ни разу их не сменил.</li>
-<li>Транскрипты и разбивка времени есть у всех 63 сессий.</li>
-<li>Интернет: 0 обращений к внешним хостам, 0 вызовов субагентов, 0 упоминаний репозитория автора.</li>
+<li>Транскрипты и разбивка времени есть у всех {sum(len(glob.glob(f"docs/pilot-runs/{l}/ticket-*/*/transcript.jsonl")) for l in ("python-opus", "javascript-opus", "typescript-opus", "ruby3-opus", "ruby4-opus", "ruby3-fable", "ruby4-fable"))} сессий.</li>
+<li>Интернет: 0 обращений к внешним хостам и 0 вызовов субагентов во всех кампаниях. Fable 5.1 дважды (Ruby 3, тикеты 1 и 7) читал <code>/proc/self/mountinfo</code>, осматривая окружение, и увидел хостовый путь bind-mount с именем репозитория эксперимента — канал утечки того же класса, что <code>docker inspect</code> в инцидентах автора. Дальше агент этим не воспользовался; путь в архиве заменён на <code>/Users/&lt;user&gt;/…</code>.</li>
+<li>Fable 5.1, Ruby 4, тикет 11: первый вызов упёрся в лимит подписки через 26 минут ($11.79 впустую), ячейка повторена с нуля после сброса, как при паузах 429 у автора. Прерванная попытка сохранена с NOTE.md и в сравнение не входит.</li>
 <li>Личных путей и данных в архивах нет.</li>
 <li>{"Число ходов пересчитано по транскрипту: " + e("; ".join(fixed_cells)) + ". Агент ждал фоновую задачу, и итоговый JSON учёл только последний отрезок сессии (2 хода вместо 49)." if fixed_cells else "Число ходов во всех сессиях совпадает с транскриптом."}</li>
 </ul>
@@ -412,7 +512,7 @@ ul{{margin:6px 0;padding-left:20px;max-width:88ch}} li{{margin:3px 0}}
 <ul>
 <li>В образе харнесса был Claude Code 2.1.238, с которым API отклоняет Opus 5.5 (ошибка 400). Версия стала параметром.</li>
 <li>Проверка транскрипта на macOS падала на русском тексте, и архив оставался без транскрипта.</li>
-<li>Контрактный тест искал сервер только на порту из <code>SYNCBOX_PORT</code>. Opus называет переменные compose-файла иначе, сервер вставал на 8080, и первый запуск кампании Ruby впустую сжёг четыре итерации. Тот запуск аннулирован.</li>
+<li>Контрактный тест искал сервер только на порту из <code>SYNCBOX_PORT</code>. Opus называет переменные compose-файла иначе, сервер вставал на 8080, и первый запуск кампании Ruby впустую сжёг четыре итерации. Тот запуск аннулирован. У Fable порт задаётся только аргументом <code>--port</code>, который подставляет <code>run-server</code>, поэтому проверка теперь, если <code>compose up</code> не дал сервер, повторяет запуск через <code>run-server</code> и убеждается, что данные лежат на tmpfs. Первый запуск кампании Fable тоже аннулирован.</li>
 <li>При полностью зелёном smoke <code>gates.json</code> записывался битым.</li>
 <li>Скрипт разбивки времени падал, если вызов инструмента в транскрипте завершился ошибкой.</li>
 <li>Проверка выхода в интернет давала ложные срабатывания на регулярках вида <code>127\\.0\\.0\\.1</code> и на примере адреса <code>nas.lan</code> в README.</li>
@@ -421,7 +521,7 @@ ul{{margin:6px 0;padding-left:20px;max-width:88ch}} li{{margin:3px 0}}
 <h2>Ограничения</h2>
 <ul>
 <li>n = 1 на ячейку: различия между языками и версиями могут быть шумом единичной генерации.</li>
-<li>Между кампаниями отличаются сразу модель, effort, версия Claude Code, абзац о версии в промпте и предзагрузка образов. Чистые сравнения — языки между собой внутри одной модели и Ruby 3.3.12 против Ruby 4.0.7.</li>
+<li>Между нашими кампаниями и кампанией автора отличаются сразу модель, effort, версия Claude Code, абзац о версии в промпте и предзагрузка образов. Чистые сравнения — языки внутри одной модели, Ruby 3.3.12 против Ruby 4.0.7 и Opus 5.5 против Fable 5.1 на Ruby (промпты и стенд одинаковые).</li>
 <li>Время сборки с автором напрямую не сравнимо: у него часть образов скачивалась во время прогона.</li>
 <li>Образы Python и Node закреплены плавающими тегами, как у автора; Ruby — точной версией.</li>
 <li>Сеть контейнера оставалась открытой; отсутствие выхода в интернет подтверждено по транскриптам, но не гарантировалось заранее.</li>

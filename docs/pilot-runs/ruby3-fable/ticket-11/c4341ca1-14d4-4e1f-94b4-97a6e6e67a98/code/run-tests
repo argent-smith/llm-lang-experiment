@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Прогон всех штатных тестов Syncbox в Docker-контейнере через docker compose.
+# Завершается ненулевым кодом, если хоть один тест упал.
+set -uo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+export SYNCBOX_UID="$(id -u)"
+export SYNCBOX_GID="$(id -g)"
+
+# Отдельный compose-проект, чтобы не задеть запущенные серверы (syncbox-<port>).
+compose=(docker compose -f "$root/compose.yaml" -p syncbox-tests --progress quiet)
+
+cleanup() {
+  "${compose[@]}" down --remove-orphans --timeout 10 >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+"${compose[@]}" run --rm --build -T test

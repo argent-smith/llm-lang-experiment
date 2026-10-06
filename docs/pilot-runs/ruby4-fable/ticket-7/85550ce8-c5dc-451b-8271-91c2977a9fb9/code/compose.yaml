@@ -1,0 +1,60 @@
+# Single source of truth for building and running Syncbox in Docker.
+#
+# Host-side interpolation variables (set by ./run-server / ./run-client, or
+# export them yourself before `docker compose up server`):
+#   SYNCBOX_DATA_DIR  host directory bind-mounted as the server's storage root (/data)
+#   SYNCBOX_PORT      TCP port, published 1:1 (same number on host and in container)
+#   SYNCBOX_DIR       host directory the client works on, bind-mounted at /work
+#   SYNCBOX_SERVER    server URL for the client (passed through as-is)
+#   SYNCBOX_UID/GID   host uid/gid, so files are read/owned as the caller
+name: syncbox
+
+services:
+  server:
+    build: .
+    image: syncbox
+    init: true
+    user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+    environment:
+      HOME: /tmp
+      SYNCBOX_DATA_DIR: /data
+      SYNCBOX_PORT: "${SYNCBOX_PORT:-8080}"
+    volumes:
+      - "${SYNCBOX_DATA_DIR:-./data}:/data"
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    command: ["bin/syncbox-server"]
+
+  # `docker compose run --rm client <push|pull|sync|status> /work --server <url>`
+  # — the CLI client, one container per invocation (see ./run-client).
+  #
+  # Host networking: the --server URL is given from the caller's point of
+  # view, and the server's port is published on the host, so the client must
+  # see the host's network namespace for http://127.0.0.1:<port> (or any
+  # other address that is valid on the host) to mean the same thing inside.
+  # Read-only mount: push only reads the directory (pull will need rw).
+  client:
+    build: .
+    image: syncbox
+    init: true
+    profiles: ["client"]
+    network_mode: host
+    user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+    environment:
+      - HOME=/tmp
+      - SYNCBOX_SERVER
+    volumes:
+      - "${SYNCBOX_DIR:-.}:/work:ro"
+    entrypoint: ["bin/syncbox"]
+
+  # `docker compose run --rm test` — runs the implementation's own test suite.
+  # Kept behind a profile so that `docker compose up` never starts it.
+  test:
+    build: .
+    image: syncbox
+    init: true
+    profiles: ["test"]
+    user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+    environment:
+      HOME: /tmp
+    command: ["bundle", "exec", "rake", "test"]
