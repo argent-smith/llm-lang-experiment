@@ -71,14 +71,16 @@ def collect(out_root):
     for c in ck.get("cells", []):
         loop = load(c.get("loop_json", "")) or {}
         its = loop.get("iterations", [])
+        # rate_limited — ячейка ждёт сброса лимита и будет повторена, это не исход
+        state = "done" if c.get("status") == "converged" else "paused" if c.get("status") == "rate_limited" else "failed"
         cells[(c["lang"], str(c["ticket"]))] = dict(
-            state="done" if c.get("status") == "converged" else "failed", status=c.get("status"),
+            state=state, status=c.get("status"),
             outcome=c.get("outcome", ""), cost=float(c.get("cost_usd") or 0), turns=int(c.get("num_turns") or 0),
             iters=len(its) or c.get("iters") or 1, sec=sum(int(i.get("duration_ms") or 0) for i in its) / 1000)
     running = None
     for lang in langs:
         for n in tickets:
-            if (lang, n) in cells:
+            if cells.get((lang, n), {}).get("state") in ("done", "failed"):
                 continue
             its = sorted(glob.glob(str(out_root / lang / f"ticket-{n}.iter*.json")),
                          key=lambda p: int(p.rsplit(".iter", 1)[1].split(".")[0]))
@@ -140,8 +142,10 @@ def render(d, out_root):
         state, cls = "завершена", "ok"
     elif not d["alive"]:
         state, cls = "процесс кампании не запущен", "bad"
+    elif any(c["state"] == "paused" for c in cells.values()):
+        state, cls = "пауза: ждёт сброса лимита", "warn"
     elif not run and pauses and finished < total:
-        state, cls = "пауза или переход между ячейками", "warn"
+        state, cls = "переход между ячейками", "warn"
     else:
         state, cls = "идёт", "run"
     spent = sum(c.get("sec", 0) for c in done + failed)
@@ -185,6 +189,8 @@ def render(d, out_root):
                 h.append('<td class="c muted">·</td>')
             elif c["state"] == "running":
                 h.append(f'<td class="c"><span class="dot" style="background:var(--run)"></span>идёт, итерация {c["iters"]}</td>')
+            elif c["state"] == "paused":
+                h.append(f'<td class="c"><span class="dot" style="background:var(--warn)"></span>лимит, повтор после сброса · ${c["cost"]:.2f}</td>')
             else:
                 mark = "готово" if c["state"] == "done" else e(c.get("status") or "не сошлось")
                 it = f' · ×{c["iters"]}' if c["iters"] > 1 else ""
@@ -192,7 +198,7 @@ def render(d, out_root):
         h.append("</tr>")
     h.append('<tr class="sum"><td>Σ</td>')
     for l in langs:
-        cs = [c for (ll, _), c in cells.items() if ll == l and c["state"] != "running"]
+        cs = [c for (ll, _), c in cells.items() if ll == l and c["state"] in ("done", "failed")]
         h.append(f'<td class="c">{len(cs)}/{len(tickets)} · ${sum(c["cost"] for c in cs):.2f} · {sum(c["turns"] for c in cs)} ходов · {mins(sum(c["sec"] for c in cs))}</td>')
     h.append("</tr></table>")
     h.append('<p class="muted small">×N — число вызовов модели на тикет. Время — сумма вызовов модели, без проверок между ними.</p>')

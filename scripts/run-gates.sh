@@ -30,10 +30,17 @@
 # реализация с другими именами поднимается на своём порту (кампания
 # Opus 5.5 × Ruby, тикет 1: сервер слушал 8080, гейт ждал $PORT и писал
 # «сервер не поднялся»). Поэтому после `compose up` гейт пробует $PORT и
-# хост-порты, которые сервис server реально опубликовал. Запуск через
-# run-server не годится: данные легли бы на bind-mount хоста, и на macOS
-# экзотические имена ключей дают Errno::EILSEQ -> 500, которых нет на
-# Linux-fs (проверено там же).
+# хост-порты, которые сервис server реально опубликовал.
+#
+# Если `compose up server` сервер так и не дал (кампания Fable 5.1 × Ruby,
+# тикет 1: порт задаётся только аргументом --port, который подставляет
+# run-server, а CMD образа — 8080), гейт повторяет запуск через
+# контрактный интерфейс — run-server --data-dir <tmp> --port $PORT — с тем
+# же override-файлом на месте. Сам по себе run-server не годится: данные
+# легли бы на bind-mount хоста, и на macOS экзотические имена ключей дают
+# Errno::EILSEQ -> 500, которых нет на Linux-fs. Поэтому после запуска
+# гейт проверяет, что /data контейнера — tmpfs (override подхвачен); на
+# macOS без tmpfs гейт завершается ошибкой стенда, а не гоняет фаззер.
 
 set -uo pipefail
 
@@ -207,9 +214,39 @@ for line in sys.stdin:
     [ "$up" -eq 1 ] && [ "$srv_port" != "$PORT" ] \
       && echo "run-gates.sh: сервер опубликован на порту $srv_port, а не $PORT — гейт идёт туда" >&2
 
+    # Запасной запуск через run-server (см. шапку).
+    contract_data=""
+    stand_error=""
+    if [ "$up" -ne 1 ] && [ -x "$PILOT_DIR/run-server" ]; then
+      echo "run-gates.sh: compose up не дал сервер — повтор через run-server" >&2
+      kill "$srv_pid" 2>/dev/null || true
+      wait "$srv_pid" 2>/dev/null || true
+      ( cd "$PILOT_DIR" && COMPOSE_PROJECT_NAME="syncbox-gate-$PORT" docker compose down -v >/dev/null 2>&1 ) || true
+      cleanup_docker
+      contract_data="$OUT_DIR/gate-contract-data"
+      rm -rf "$contract_data"
+      mkdir -p "$contract_data"
+      { echo; echo "=== повтор через run-server ==="; } >>"$srv_log"
+      "$PILOT_DIR/run-server" --data-dir "$contract_data" --port "$PORT" >>"$srv_log" 2>&1 &
+      srv_pid=$!
+      srv_port="$PORT"
+      for _ in $(seq 1 300); do
+        curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 && { up=1; break; }
+        sleep 0.3
+      done
+      if [ "$up" -eq 1 ]; then
+        cid="$(docker ps -q --filter "publish=$PORT" | head -1)"
+        tmpfs="$(docker inspect --format '{{json .HostConfig.Tmpfs}}' "$cid" 2>/dev/null || true)"
+        if [[ "$tmpfs" != *'"/data"'* ]] && [ "$(uname -s)" = "Darwin" ]; then
+          up=0
+          stand_error="стенд: сервер поднят через run-server, но /data не на tmpfs (run-server не подхватил override) — на macOS контракт-прогон недетерминирован, гейт не запущен"
+        fi
+      fi
+    fi
+
     if [ "$up" -ne 1 ]; then
       contract_status=error
-      contract_summary="сервер не поднялся за 60с (contract-гейт); хвост server-лога: $(tail -5 "$srv_log" | tr '\n' ' ')"
+      contract_summary="${stand_error:-сервер не поднялся за 60с (contract-гейт); хвост server-лога: $(tail -5 "$srv_log" | tr '\n' ' ')}"
     else
       # 3 прогона, гейт зелёный только если зелёны все три. Даже с tmpfs +
       # --generation-deterministic один язык (Python) флапает ~4/8 на
@@ -256,6 +293,7 @@ for line in sys.stdin:
     ( cd "$PILOT_DIR" && COMPOSE_PROJECT_NAME="syncbox-gate-$PORT" docker compose down -v >/dev/null 2>&1 ) || true
     rm -f "$OVERRIDE"
     cleanup_docker
+    [ -n "$contract_data" ] && rm -rf "$contract_data"
   fi
 fi
 
