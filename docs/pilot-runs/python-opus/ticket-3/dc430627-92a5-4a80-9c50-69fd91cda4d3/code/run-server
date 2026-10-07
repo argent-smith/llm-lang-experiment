@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Usage: run-server --data-dir <path> [--port <n>]
+#
+# Runs the Syncbox server in the foreground inside Docker (via docker compose).
+# <path> is a host directory (created if missing) bind-mounted into the
+# container; <n> is published on the host. Falls back to SYNCBOX_DATA_DIR /
+# SYNCBOX_PORT when flags are omitted. SYNCBOX_PUBLISH_ADDR (default
+# 127.0.0.1) selects the host address the port is published on.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+die() {
+    echo "run-server: error: $*" >&2
+    echo "usage: run-server --data-dir <path> [--port <n>]" >&2
+    exit 2
+}
+
+data_dir="${SYNCBOX_DATA_DIR:-}"
+port="${SYNCBOX_PORT:-8080}"
+
+while (($#)); do
+    case "$1" in
+        --data-dir) (($# >= 2)) || die "--data-dir requires a value"; data_dir="$2"; shift 2 ;;
+        --data-dir=*) data_dir="${1#*=}"; shift ;;
+        --port) (($# >= 2)) || die "--port requires a value"; port="$2"; shift 2 ;;
+        --port=*) port="${1#*=}"; shift ;;
+        -h|--help) sed -n '2,8s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        *) die "unknown argument: $1" ;;
+    esac
+done
+
+[[ -n "$data_dir" ]] || die "data directory is required: pass --data-dir or set SYNCBOX_DATA_DIR"
+[[ "$port" =~ ^[0-9]+$ ]] && ((10#$port >= 1 && 10#$port <= 65535)) \
+    || die "invalid port '$port': expected an integer 1-65535"
+
+# Relative paths are relative to the caller's cwd, while compose would resolve
+# them against the project directory, so pass an absolute path. Creating the
+# directory here also keeps Docker from creating it as root.
+mkdir -p -- "$data_dir"
+data_dir="$(cd -- "$data_dir" && pwd)"
+
+export SYNCBOX_COMPOSE_DATA_DIR="$data_dir"
+export SYNCBOX_COMPOSE_PORT="$((10#$port))"
+export SYNCBOX_COMPOSE_PUBLISH_ADDR="${SYNCBOX_PUBLISH_ADDR:-127.0.0.1}"
+export SYNCBOX_COMPOSE_UID="$(id -u)"
+export SYNCBOX_COMPOSE_GID="$(id -g)"
+
+# One compose project per port: instances on different ports don't interfere,
+# and a restart on the same port reuses/recreates the same container.
+compose=(docker compose --file "$root/compose.yaml" --project-name "syncbox-server-$SYNCBOX_COMPOSE_PORT")
+"${compose[@]}" build --quiet server
+
+# `compose run` does not forward SIGTERM to the container, so use `up`, which
+# stops it gracefully. Bash doesn't forward signals to children either: run
+# compose in the background, relay signals ourselves, then remove the container.
+"${compose[@]}" up --no-build --no-log-prefix --exit-code-from server server &
+child=$!
+status=0
+on_signal() {
+    status=$((128 + $1))
+    kill -TERM "$child" 2>/dev/null || true
+}
+trap 'on_signal 1' HUP
+trap 'on_signal 2' INT
+trap 'on_signal 15' TERM
+
+wait "$child" && rc=0 || rc=$?
+# wait returns early when a trapped signal arrives; keep waiting until compose exits.
+while kill -0 "$child" 2>/dev/null; do
+    wait "$child" && rc=0 || rc=$?
+done
+((status)) || status=$rc
+"${compose[@]}" down --timeout 10 >/dev/null 2>&1 || true
+exit "$status"

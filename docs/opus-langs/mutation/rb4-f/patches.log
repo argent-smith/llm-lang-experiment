@@ -1,0 +1,4 @@
+patched: test/blob_store_test.rb
+patched: test/client/status_test.rb
+patched: test/client/local_tree_test.rb
+patched: test/client/push_test.rb

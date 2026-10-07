@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# Syncbox client launcher (spec convention:
+#   <repo>/run-client <push|pull|sync|status> <dir> --server <url>).
+#
+# Runs the client inside a Docker container via docker compose and forwards
+# the subcommand and arguments to it. <dir> is bind-mounted into the
+# container at /work (read-only for push/status, read-write for pull/sync);
+# everything else (including --server, which falls back
+# to SYNCBOX_SERVER) is passed through to `syncbox` untouched. The client
+# container uses the host network, so the --server URL means the same thing
+# inside the container as it does for the caller.
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+Usage: run-client <push|pull|sync|status> <dir> --server <url>
+
+Commands:
+  push     Upload files that are missing on the server or differ from it (by SHA-256)
+  pull     Download files that are missing locally or differ from the server (by SHA-256)
+  sync     Reconcile both ways (not implemented yet)
+  status   Dry run: show what push and pull would do, changing nothing on either side
+
+Options:
+  --server URL   Base URL of the Syncbox server (required; env SYNCBOX_SERVER)
+  -h, --help     Show this help
+USAGE
+}
+
+die() {
+  echo "run-client: $*" >&2
+  usage >&2
+  exit 2
+}
+
+command=""
+dir=""
+forward=()
+
+# Only <dir> is interpreted here (it has to be mounted); every flag is
+# forwarded verbatim. --server takes a value, so its value must not be
+# mistaken for a positional argument.
+while (($#)); do
+  case "$1" in
+    --server)   [[ $# -ge 2 ]] || die "--server requires a value"; forward+=("$1" "$2"); shift 2 ;;
+    --server=*) forward+=("$1"); shift ;;
+    -h|--help)  usage; exit 0 ;;
+    -*)         forward+=("$1"); shift ;;
+    *)
+      if [[ -z "$command" ]]; then command="$1"
+      elif [[ -z "$dir" ]]; then dir="$1"
+      else forward+=("$1")
+      fi
+      shift ;;
+  esac
+done
+
+[[ -n "$command" ]] || die "missing command (one of: push, pull, sync, status)"
+case "$command" in
+  push|pull|sync|status) ;;
+  *) die "unknown command '$command' (expected one of: push, pull, sync, status)" ;;
+esac
+[[ -n "$dir" ]] || die "missing <dir> argument"
+[[ -e "$dir" ]] || { echo "run-client: directory does not exist: $dir" >&2; exit 1; }
+[[ -d "$dir" ]] || { echo "run-client: not a directory: $dir" >&2; exit 1; }
+
+export SYNCBOX_DIR="$(cd -- "$dir" && pwd -P)"
+case "$command" in
+  pull|sync) export SYNCBOX_DIR_MODE=rw ;;
+  *)         export SYNCBOX_DIR_MODE=ro ;;
+esac
+export SYNCBOX_UID="$(id -u)"
+export SYNCBOX_GID="$(id -g)"
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+
+# --quiet still prints hints (e.g. about COMPOSE_BAKE) on stdout; keep the
+# client's stdout clean and let only real build errors (stderr) through.
+docker compose build --quiet client >/dev/null
+
+# `docker compose run` does not reliably forward SIGINT/SIGTERM to the
+# container, so keep it as a child, trap the signals ourselves and stop the
+# container by name. `-T`: no pseudo-TTY, so stdout and stderr stay separate.
+container="syncbox-client-$$"
+
+stop_container() {
+  trap - INT TERM HUP
+  # SIGTERM first so the client can finish cleaning up (a pull removes its
+  # staging file on the way out); only then remove the container for good.
+  docker stop --time 10 -- "$container" >/dev/null 2>&1 || true
+  docker rm -f -- "$container" >/dev/null 2>&1 || true
+}
+trap 'interrupted=1; stop_container' INT TERM HUP
+
+interrupted=0
+docker compose run --rm -T --name "$container" client "$command" /work ${forward[@]+"${forward[@]}"} &
+compose_pid=$!
+
+# `wait` returns early when a trapped signal arrives; keep waiting until the
+# compose process has actually finished.
+status=0
+while :; do
+  if wait "$compose_pid"; then status=0; else status=$?; fi
+  kill -0 "$compose_pid" 2>/dev/null || break
+done
+
+stop_container
+
+if (( interrupted )); then
+  exit 130
+fi
+exit "$status"

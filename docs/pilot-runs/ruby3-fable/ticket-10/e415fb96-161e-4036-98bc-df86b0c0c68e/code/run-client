@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Запуск CLI-клиента Syncbox в Docker-контейнере через docker compose.
+#
+#   run-client <push|pull|sync|status> <dir> --server <url>
+#
+# Вместо --server можно задать переменную окружения SYNCBOX_SERVER (флаг
+# имеет приоритет). <dir> — каталог на хосте; он монтируется в контейнер как
+# /sync (только для чтения, если команда локальные файлы не меняет), а
+# подкоманда и остальные аргументы форвардятся клиенту `syncbox` как есть.
+# Клиент работает в сетевом пространстве хоста, поэтому <url> означает то же,
+# что и для вызывающего (например, http://127.0.0.1:8080).
+#
+# Код возврата — код клиента (0 — успех, 1 — сбой, 2 — ошибка в аргументах).
+set -uo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<USAGE
+Usage: run-client <push|pull|sync|status> <dir> --server <url>
+
+Commands:
+  push     upload files that are missing on the server or differ from it by SHA-256
+  pull     download files that are missing locally or differ from the server by SHA-256
+  sync     two-way: upload local-only/changed files, download server-only/changed ones;
+           if both sides changed since the last sync, the newer mtime wins (tie: local)
+  status   dry run: show what push and pull would do, changing nothing
+
+Options:
+  --server URL  server base URL, e.g. http://127.0.0.1:8080 (required; env: SYNCBOX_SERVER)
+  -h, --help    show this help
+USAGE
+}
+
+die() {
+  echo "run-client: $*" >&2
+  usage >&2
+  exit 2
+}
+
+[[ $# -ge 1 ]] || die "command is required: one of push, pull, sync, status"
+command="$1"; shift
+case "$command" in
+  push|pull|sync|status) ;;
+  -h|--help) usage; exit 0 ;;
+  *) die "unknown command: '$command' (expected one of push, pull, sync, status)" ;;
+esac
+
+server="${SYNCBOX_SERVER:-}"
+dir=""
+extra=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)
+      [[ $# -ge 2 ]] || die "--server requires a value"
+      server="$2"; shift 2 ;;
+    --server=*)
+      server="${1#*=}"; shift ;;
+    -h|--help)
+      usage; exit 0 ;;
+    --)
+      shift
+      while [[ $# -gt 0 ]]; do
+        if [[ -z "$dir" ]]; then dir="$1"; else extra+=("$1"); fi
+        shift
+      done ;;
+    -*)
+      # Неизвестные флаги форвардятся клиенту: он сам ответит usage-ошибкой.
+      extra+=("$1"); shift ;;
+    *)
+      if [[ -z "$dir" ]]; then dir="$1"; else extra+=("$1"); fi
+      shift ;;
+  esac
+done
+
+[[ -n "$dir" ]] || die "$command requires <dir>"
+[[ -n "$server" ]] || die "--server is required (or set SYNCBOX_SERVER)"
+if [[ ! -d "$dir" ]]; then
+  echo "run-client: directory not found: $dir" >&2
+  exit 1
+fi
+# Абсолютный путь для bind mount; каталог проверен выше, поэтому Docker не
+# создаст его под root'ом вместо нас.
+dir="$(cd "$dir" && pwd -P)" || exit 1
+
+mode=rw
+case "$command" in
+  push|status) mode=ro ;;
+esac
+
+export SYNCBOX_SYNC_DIR="$dir"
+export SYNCBOX_SYNC_MODE="$mode"
+export SYNCBOX_UID="$(id -u)"
+export SYNCBOX_GID="$(id -g)"
+
+# У каждого вызова свой compose-проект: параллельные клиенты и запущенные
+# серверы (syncbox-<port>) друг друга не трогают, а уборка по сигналу
+# гасит только свой контейнер.
+compose=(docker compose -f "$root/compose.yaml" -p "syncbox-client-$$-$RANDOM" --progress quiet)
+
+cleanup() {
+  "${compose[@]}" down --remove-orphans --timeout 5 >/dev/null 2>&1 || true
+}
+
+# `docker compose run` без TTY не пробрасывает сигналы в контейнер, поэтому
+# compose запускается фоном, а по сигналу обёртка сама гасит контейнер.
+on_signal() {
+  trap '' INT TERM HUP
+  cleanup
+}
+trap on_signal INT TERM HUP
+trap cleanup EXIT
+
+# Сборка — отдельным шагом с выводом в stderr: stdout обёртки принадлежит
+# клиенту, а compose печатает свои подсказки в stdout.
+"${compose[@]}" build client >&2 || exit 1
+
+"${compose[@]}" run --rm -T client "$command" /sync --server "$server" ${extra[@]+"${extra[@]}"} &
+child=$!
+
+status=0
+while kill -0 "$child" 2>/dev/null; do
+  wait "$child"
+  status=$?
+done
+exit "$status"

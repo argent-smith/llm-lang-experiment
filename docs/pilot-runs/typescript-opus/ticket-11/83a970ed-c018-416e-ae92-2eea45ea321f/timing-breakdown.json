@@ -1,0 +1,12 @@
+{
+  "session_id": "83a970ed-c018-416e-ae92-2eea45ea321f",
+  "wall_source": "container_wall_ms",
+  "wall_ms": 923801,
+  "model_ms": 812914,
+  "tool_wall_ms": 110887,
+  "infra_ms": 0,
+  "work_ms": 110887,
+  "duration_ms": 896511,
+  "duration_api_ms": 787348,
+  "note": "wall_ms — полное время попытки (container_wall_ms из harness-timing.json, внешний замер вокруг docker run; для архивов до 2026-09-02 — duration_ms). tool_wall_ms — прямая сумма wall-time пар tool_use/tool_result транскрипта. infra_ms — её инфраструктурная часть (загрузка образов/зависимостей) по классификатору BuildKit-вывода. work_ms = tool_wall_ms - infra_ms. model_ms = wall_ms - tool_wall_ms (генерация модели + стриминг + оверхед)."
+}

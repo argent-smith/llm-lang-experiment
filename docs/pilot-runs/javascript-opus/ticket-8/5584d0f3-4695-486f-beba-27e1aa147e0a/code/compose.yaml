@@ -1,0 +1,80 @@
+# Single source of truth for building and running Syncbox in Docker.
+# Use the wrappers in the repo root (run-server, run-client, run-tests)
+# rather than invoking these services directly: the wrappers set the
+# SYNCBOX_COMPOSE_* variables below from their own command-line arguments.
+name: syncbox
+
+x-hardening: &hardening
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  server:
+    <<: *hardening
+    build:
+      context: .
+      target: server
+    image: syncbox-server:dev
+    user: "${SYNCBOX_COMPOSE_UID:-1000}:${SYNCBOX_COMPOSE_GID:-1000}"
+    # Docker's default bridge instead of a per-project network: run-server
+    # starts one compose project per port, and per-project networks would
+    # pile up (and exhaust address pools) if a wrapper is killed uncleanly.
+    network_mode: bridge
+    # Same port inside and outside the container, so the server's own
+    # logs and the host-side URL agree.
+    ports:
+      - "${SYNCBOX_COMPOSE_PORT:-8080}:${SYNCBOX_COMPOSE_PORT:-8080}"
+    volumes:
+      - type: bind
+        source: ${SYNCBOX_COMPOSE_DATA_DIR:-./data}
+        target: /data
+    command: ["--data-dir", "/data", "--port", "${SYNCBOX_COMPOSE_PORT:-8080}"]
+    stop_grace_period: 10s
+
+  client:
+    <<: *hardening
+    build:
+      context: .
+      target: client
+    image: syncbox-client:dev
+    user: "${SYNCBOX_COMPOSE_UID:-1000}:${SYNCBOX_COMPOSE_GID:-1000}"
+    # The host's network stack, so that --server means the same as it does
+    # on the host: http://127.0.0.1:<port> reaches a server published by
+    # run-server, and remote hosts resolve as they would there.
+    network_mode: host
+    # The directory being synced, read-only: for the commands that only
+    # read it (push).
+    volumes:
+      - type: bind
+        source: ${SYNCBOX_COMPOSE_SYNC_DIR:-./sync}
+        target: /sync
+        read_only: true
+
+  # The same client with the directory writable, for the commands that
+  # write into it (pull). Uses the image built for `client`.
+  client-writable:
+    <<: *hardening
+    image: syncbox-client:dev
+    # Never pulled: run-client builds it (as `client`) first.
+    pull_policy: never
+    user: "${SYNCBOX_COMPOSE_UID:-1000}:${SYNCBOX_COMPOSE_GID:-1000}"
+    network_mode: host
+    volumes:
+      - type: bind
+        source: ${SYNCBOX_COMPOSE_SYNC_DIR:-./sync}
+        target: /sync
+
+  test:
+    <<: *hardening
+    build:
+      context: .
+      target: test
+    image: syncbox-test:dev
+    # Tests only talk to servers they spawn on loopback.
+    network_mode: none

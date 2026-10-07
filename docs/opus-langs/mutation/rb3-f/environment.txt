@@ -1,0 +1,16 @@
+Mutant environment:
+Usage:           opensource
+Matcher:         #<Mutant::Matcher::Config subjects: [Syncbox*]>
+Integration:     minitest
+Jobs:            8
+Includes:        []
+Requires:        ["./mutant_boot"]
+Operators:       light
+MutationTimeout: 5
+Selection:       expression
+Subjects:        152
+All-Tests:       387
+Available-Tests: 387
+Selected-Tests:  387
+Tests/Subject:   2.55 avg
+Mutations:       9153

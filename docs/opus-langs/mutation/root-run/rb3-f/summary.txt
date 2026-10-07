@@ -1,0 +1,13 @@
+субъектов всего: 152, в выборке: 38
+Alive mutations require one of two actions:
+RuntimeError: PUT same.txt -> 404
+Subjects:        38
+Mutations:       1640
+Results:         1640
+Kills:           1327
+Alive:           313
+Timeouts:        18
+Runtime:         5019.17s
+Killtime:        27788.14s
+Mutations/s:     0.33
+Coverage:        80.91%

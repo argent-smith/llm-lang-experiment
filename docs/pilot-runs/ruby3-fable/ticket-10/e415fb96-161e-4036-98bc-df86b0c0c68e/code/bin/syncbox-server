@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Точка входа HTTP-сервера Syncbox (исполняется внутри Docker-контейнера,
+# см. run-server в корне репозитория).
+
+$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+
+require "syncbox"
+
+exit Syncbox::ServerCLI.run(ARGV)

@@ -1,0 +1,44 @@
+# Единый источник правды для сборки, сети и volume'ов Syncbox.
+# Обёртки run-server / run-client / run-tests вызывают только `docker compose`.
+name: syncbox
+
+x-ruby: &ruby
+  build: .
+  image: syncbox:dev
+  # Запускаемся под uid/gid вызывающего пользователя (обёртки передают их
+  # через SYNCBOX_UID/SYNCBOX_GID), чтобы файлы в примонтированных каталогах
+  # не оказались принадлежащими root'у на хосте, а клиент мог читать их
+  # с правами владельца.
+  user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+
+services:
+  server:
+    <<: *ruby
+    command: ["bundle", "exec", "bin/syncbox-server"]
+    environment:
+      SYNCBOX_DATA_DIR: /data
+      SYNCBOX_PORT: "${SYNCBOX_PORT:-8080}"
+    # Порт публикуется только при `run --service-ports` или `up`.
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    volumes:
+      - "${SYNCBOX_DATA_DIR:-./data}:/data"
+
+  # CLI-клиент: `docker compose run client <push|pull|sync|status> /sync --server <url>`.
+  client:
+    <<: *ruby
+    entrypoint: ["bundle", "exec", "bin/syncbox"]
+    # Сетевое пространство хоста: `--server <url>` означает внутри контейнера
+    # ровно то же, что и снаружи — в том числе http://127.0.0.1:<port>,
+    # опубликованный run-server. Своей сети у клиента нет, портов он не
+    # слушает.
+    network_mode: host
+    volumes:
+      # Синхронизируемый каталог хоста (run-client передаёт абсолютный путь).
+      # Для команд, которые локальные файлы не меняют (push, status), обёртка
+      # монтирует его только для чтения.
+      - "${SYNCBOX_SYNC_DIR:-./sync}:/sync:${SYNCBOX_SYNC_MODE:-rw}"
+
+  test:
+    <<: *ruby
+    command: ["bundle", "exec", "rake", "test"]

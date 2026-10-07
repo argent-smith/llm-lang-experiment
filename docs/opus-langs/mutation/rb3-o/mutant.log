@@ -1,0 +1,486 @@
+Mutant environment:
+Usage:           opensource
+Matcher:         #<Mutant::Matcher::Config subjects: [Syncbox::Client::CLI.run,Syncbox::Client::Failures#initialize,Syncbox::Client::LocalDir#children,Syncbox::Client::LocalDir#initialize,Syncbox::Client::LocalDir#reading,Syncbox::Client::LocalDir#write,Syncbox::Client::LocalDir.sha256,Syncbox::Client::Pull#run,Syncbox::Client::Remote#list,Syncbox::Client::Remote#network_failure,Syncbox::Client::Remote#request,Syncbox::Client::Remote.escape_key,Syncbox::Client::Remote::BlockError#initialize,Syncbox::Client::Status#report,Syncbox::Client::Sync#comparable_times,Syncbox::Client::SyncState#keys,Syncbox::Client::SyncState#read,Syncbox::Server::App#decode_key,Syncbox::Server::App#get_blob,Syncbox::Server::App#method_not_allowed,Syncbox::Server::App::FileBody#close,Syncbox::Server::Store#blob_path,Syncbox::Server::Store#each_entry,Syncbox::Server::Store#prune_empty_dirs,Syncbox::Server::Store#staging_path]>
+Integration:     minitest
+Jobs:            6
+Includes:        []
+Requires:        ["./mutant_boot"]
+Operators:       light
+MutationTimeout: 120
+Selection:       expression
+Subjects:        25
+All-Tests:       217
+Available-Tests: 217
+Selected-Tests:  217
+Tests/Subject:   8.68 avg
+Mutations:       1637
+Uncovered mutations detected, exiting nonzero!
+Alive mutations require one of two actions:
+A) Keep the mutated code: Your tests specify the correct semantics,
+   and the original code is redundant. Accept the mutation.
+B) Add a missing test: The original code is correct, but the tests
+   do not verify the behavior the mutation removed.
+Syncbox::Client::CLI.run:/app/lib/syncbox/client/cli.rb:7
+tests: 217, runtime: 1183.24s, killtime: 1165.23s
+evil:Syncbox::Client::CLI.run:/app/lib/syncbox/client/cli.rb:7:fb3f9
+-----------------------
+@@ -1,29 +1,29 @@
+-def self.run(argv, env: ENV, out: $stdout, err: $stderr, timeouts: Remote::TIMEOUTS)
++def self.run(argv, env:, out: $stdout, err: $stderr, timeouts: Remote::TIMEOUTS)
+   options = Options.parse(argv, env)
+   if options.nil?
+     out.puts(Options.usage)
+     return 0
+   end
+   local_dir = LocalDir.new(options.dir, on_skip: ->(path, why) {
+     err.puts("syncbox: skipping #{path}: #{why}")
+   })
+   Remote.open(options.server, timeouts:) { |remote|
+     case options.command
+     when "push"
+       Push.new(local_dir, remote, out:).run
+     when "pull"
+       Pull.new(local_dir, remote, out:).run
+     when "sync"
+       Sync.new(local_dir, remote, server: options.server, out:, err:).run
+     when "status"
+       Status.new(local_dir, remote, out:, err:).run
+     end
+   }
+   0
+ rescue UsageError => e
+   err.puts("syncbox: #{e.message}", Options.usage)
+   2
+ rescue Error => e
+   err.puts("syncbox: #{e.message}")
+   1
+ end
+-----------------------
+(11 more alive mutation(s), use `mutant session subject Syncbox::Client::CLI.run` to see all details)
+Syncbox::Client::LocalDir#children:/app/lib/syncbox/client/local_dir.rb:241
+tests: 217, runtime: 320.81s, killtime: 317.30s
+evil:Syncbox::Client::LocalDir#children:/app/lib/syncbox/client/local_dir.rb:241:2fca0
+-----------------------
+@@ -1,9 +1,9 @@
+ def children(dir, rel)
+-  Dir.children(dir, encoding: Encoding::BINARY)
++  Dir.children(dir, encoding: nil)
+ rescue SystemCallError => e
+   raise(Error, "cannot read directory #{if rel
+   display(rel)
+ else
+   @root
+ end}: #{self.class.reason(e)}")
+ end
+-----------------------
+(6 more alive mutation(s), use `mutant session subject Syncbox::Client::LocalDir#children` to see all details)
+Syncbox::Client::LocalDir#initialize:/app/lib/syncbox/client/local_dir.rb:67
+tests: 217, runtime: 143.81s, killtime: 142.66s
+evil:Syncbox::Client::LocalDir#initialize:/app/lib/syncbox/client/local_dir.rb:67:67b2d
+-----------------------
+@@ -1,5 +1,4 @@
+ def initialize(root, on_skip: nil)
+   @root = root
+-  @on_skip = on_skip || ->(_path, _reason) {
+-  }
++  @on_skip = on_skip
+ end
+-----------------------
+(2 more alive mutation(s), use `mutant session subject Syncbox::Client::LocalDir#initialize` to see all details)
+Syncbox::Client::LocalDir#reading:/app/lib/syncbox/client/local_dir.rb:219
+tests: 217, runtime: 279.92s, killtime: 277.32s
+evil:Syncbox::Client::LocalDir#reading:/app/lib/syncbox/client/local_dir.rb:219:1a0ad
+-----------------------
+@@ -1,10 +1,8 @@
+ def reading(rel, on_error)
+   yield
+ rescue Error => e
+-  if rel.nil?
+-    raise
+-  end
++  nil
+   @unreadable << rel
+   on_error.call(e)
+   nil
+ end
+-----------------------
+(5 more alive mutation(s), use `mutant session subject Syncbox::Client::LocalDir#reading` to see all details)
+Syncbox::Client::LocalDir#write:/app/lib/syncbox/client/local_dir.rb:187
+tests: 217, runtime: 1942.60s, killtime: 1802.88s
+evil:Syncbox::Client::LocalDir#write:/app/lib/syncbox/client/local_dir.rb:187:e2a58
+-----------------------
+@@ -1,27 +1,27 @@
+ def write(target)
+   dir = File.dirname(target.path)
+   make_parent_dirs(target.key)
+-  staged = File.join(dir, "#{STAGING_PREFIX}#{SecureRandom.hex(8)}#{STAGING_SUFFIX}")
++  staged = File.join(dir, "#{STAGING_PREFIX}#{SecureRandom}#{STAGING_SUFFIX}")
+   File.open(staged, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW | File::BINARY, 438) { |file|
+     yield(file)
+     if target.stat
+       file.chmod(target.stat.mode & 4095)
+     end
+     file.fsync
+   }
+   unless File.realpath(dir).b == File.dirname(File.join(real_root, target.key.b))
+     raise(Error, "cannot write #{target.key}: its directory has moved")
+   end
+   File.rename(staged, target.path)
+   staged = nil
+ rescue SystemCallError, IOError => e
+   raise(Error, "cannot write #{target.key}: #{self.class.reason(e)}")
+ ensure
+   begin
+     if staged
+       File.unlink(staged)
+     end
+   rescue SystemCallError
+     nil
+   end
+ end
+-----------------------
+(40 more alive mutation(s), use `mutant session subject Syncbox::Client::LocalDir#write` to see all details)
+Syncbox::Client::Pull#run:/app/lib/syncbox/client/pull.rb:24
+tests: 217, runtime: 779.95s, killtime: 763.90s
+evil:Syncbox::Client::Pull#run:/app/lib/syncbox/client/pull.rb:24:f34b9
+-----------------------
+@@ -1,29 +1,29 @@
+ def run
+   @local_dir.real_root
+   failures = Failures.new
+   downloaded = 0
+   unchanged = 0
+   @remote.list.each { |blob|
+     failures.guard {
+-      target = @local_dir.target(blob["key"])
++      target = @local_dir.target(blob.fetch("key"))
+       unless target
+         next
+       end
+       if target.stat && same?(target, blob)
+         unchanged += 1
+         next
+       end
+       @local_dir.write(target) { |file|
+         @remote.get(target.key) { |chunk|
+           file.write(chunk)
+         }
+       }
+       downloaded += 1
+       @out.puts("downloaded #{target.key}")
+     }
+   }
+   result = Result.new(downloaded:, unchanged:, failed: failures.size)
+   @out.puts("pull: #{result.downloaded} downloaded, #{result.unchanged} unchanged#{failures.summary}")
+   failures.raise_if_any("pull")
+   result
+ end
+-----------------------
+(5 more alive mutation(s), use `mutant session subject Syncbox::Client::Pull#run` to see all details)
+Syncbox::Client::Remote#list:/app/lib/syncbox/client/remote.rb:77
+tests: 217, runtime: 1014.77s, killtime: 883.80s
+evil:Syncbox::Client::Remote#list:/app/lib/syncbox/client/remote.rb:77:dfc6e
+-----------------------
+@@ -1,13 +1,13 @@
+ def list
+   response = request(Net::HTTP::Get.new("#{@base_path}/blobs"), LIST)
+   expect(response, "200", LIST)
+   entries = JSON.parse(response.body)
+-  unless entries.is_a?(Array) && entries.all? { |e|
++  unless entries.all? { |e|
+     e.is_a?(Hash) && e["key"].is_a?(String) && e["sha256"].is_a?(String)
+   }
+     raise(Error, "unexpected response from server to GET /blobs: not a list of blobs")
+   end
+   entries
+ rescue JSON::ParserError
+   raise(Error, "unexpected response from server to GET /blobs: invalid JSON")
+ end
+-----------------------
+(17 more alive mutation(s), use `mutant session subject Syncbox::Client::Remote#list` to see all details)
+Syncbox::Client::Remote#network_failure:/app/lib/syncbox/client/remote.rb:144
+tests: 217, runtime: 921.79s, killtime: 912.78s
+evil:Syncbox::Client::Remote#network_failure:/app/lib/syncbox/client/remote.rb:144:daa5a
+-----------------------
+@@ -1,19 +1,19 @@
+ def network_failure(error, what)
+   server = "server #{@base_url}"
+   case error
+   when Net::OpenTimeout, SocketError, *CONNECT_ERRNOS
+     "cannot reach #{server}#{unless what == LIST
+   " for #{what}"
+ end}: #{connect_reason(error)}"
+   when Net::ReadTimeout
+     "no answer from #{server} to #{what} within #{seconds(@timeouts.read)}"
+   when Net::WriteTimeout
+-    "timed out sending #{what} to #{server}: no progress for #{seconds(@timeouts.write)}"
++    "timed out sending #{nil} to #{server}: no progress for #{seconds(@timeouts.write)}"
+   when EOFError
+     "connection to #{server} closed during #{what}"
+   when SystemCallError
+     "connection to #{server} failed during #{what}: #{LocalDir.reason(error)}"
+   else
+     "connection to #{server} failed during #{what}: #{error.message}"
+   end
+ end
+-----------------------
+(28 more alive mutation(s), use `mutant session subject Syncbox::Client::Remote#network_failure` to see all details)
+Syncbox::Client::Remote#request:/app/lib/syncbox/client/remote.rb:135
+tests: 217, runtime: 420.26s, killtime: 416.00s
+evil:Syncbox::Client::Remote#request:/app/lib/syncbox/client/remote.rb:135:41623
+-----------------------
+@@ -1,11 +1,9 @@
+ def request(req, what, &block)
+-  unless @http.started?
+-    @http.start
+-  end
++  nil
+   @http.request(req, &block)
+ rescue *NETWORK_ERRORS => e
+   if @http.started?
+     @http.finish
+   end
+   raise(Error, network_failure(e, what))
+ end
+-----------------------
+(12 more alive mutation(s), use `mutant session subject Syncbox::Client::Remote#request` to see all details)
+Syncbox::Client::Remote.escape_key:/app/lib/syncbox/client/remote.rb:121
+tests: 217, runtime: 225.37s, killtime: 222.85s
+evil:Syncbox::Client::Remote.escape_key:/app/lib/syncbox/client/remote.rb:121:20e4a
+-----------------------
+@@ -1,5 +1,5 @@
+ def self.escape_key(key)
+-  key.split("/", -1).map { |segment|
++  key.split("/", 0).map { |segment|
+     URI.encode_uri_component(segment)
+   }.join("/")
+ end
+-----------------------
+(3 more alive mutation(s), use `mutant session subject Syncbox::Client::Remote.escape_key` to see all details)
+Syncbox::Client::Remote::BlockError#initialize:/app/lib/syncbox/client/remote.rb:41
+tests: 217, runtime: 260.50s, killtime: 259.33s
+evil:Syncbox::Client::Remote::BlockError#initialize:/app/lib/syncbox/client/remote.rb:41:13e25
+-----------------------
+@@ -1,4 +1,4 @@
+ def initialize(error)
+-  super(error.message)
++  nil
+   @error = error
+ end
+-----------------------
+(6 more alive mutation(s), use `mutant session subject Syncbox::Client::Remote::BlockError#initialize` to see all details)
+Syncbox::Client::Status#report:/app/lib/syncbox/client/status.rb:91
+tests: 217, runtime: 726.73s, killtime: 716.87s
+evil:Syncbox::Client::Status#report:/app/lib/syncbox/client/status.rb:91:63d3f
+-----------------------
+@@ -1,10 +1,10 @@
+ def report(result, failures)
+   (result.uploads + result.downloads).each { |change|
+     @out.puts(format("%-9s %-8s %s", change.direction, change.kind, change.key))
+   }
+-  if result.uploads.empty? && result.downloads.empty? && failures.empty?
++  if result.uploads.empty? && result.downloads.empty?
+     @out.puts("status: in sync, #{result.unchanged} unchanged")
+   else
+     @out.puts("status: #{result.uploads.size} to upload, #{result.downloads.size} to download, " "#{result.unchanged} unchanged#{failures.summary}")
+   end
+ end
+-----------------------
+(2 more alive mutation(s), use `mutant session subject Syncbox::Client::Status#report` to see all details)
+Syncbox::Client::Sync#comparable_times:/app/lib/syncbox/client/sync.rb:110
+tests: 217, runtime: 1557.46s, killtime: 1548.62s
+evil:Syncbox::Client::Sync#comparable_times:/app/lib/syncbox/client/sync.rb:110:723b5
+-----------------------
+@@ -1,8 +1,8 @@
+ def comparable_times(entry, blob)
+-  text = blob["modified_at"]
++  text = blob.fetch("modified_at")
+   server_mtime = Time.iso8601(text)
+   digits = [text[/T\d\d:\d\d:\d\d\.(\d+)/, 1].to_s.size, 9].min
+   [LocalDir.mtime(entry).floor(digits), server_mtime.floor(digits)]
+ rescue ArgumentError, TypeError
+   raise(Error, "unexpected response from server to GET /blobs: invalid modified_at for #{entry.key}")
+ end
+-----------------------
+(28 more alive mutation(s), use `mutant session subject Syncbox::Client::Sync#comparable_times` to see all details)
+Syncbox::Client::SyncState#keys:/app/lib/syncbox/client/sync_state.rb:52
+tests: 217, runtime: 55.90s, killtime: 55.15s
+evil:Syncbox::Client::SyncState#keys:/app/lib/syncbox/client/sync_state.rb:52:063e9
+-----------------------
+@@ -1,3 +1,3 @@
+ def keys
+-  @files.keys
++  @files.values
+ end
+-----------------------
+Syncbox::Client::SyncState#read:/app/lib/syncbox/client/sync_state.rb:79
+tests: 217, runtime: 1692.46s, killtime: 1681.45s
+evil:Syncbox::Client::SyncState#read:/app/lib/syncbox/client/sync_state.rb:79:560a4
+-----------------------
+@@ -1,17 +1,17 @@
+ def read
+-  json = File.open(path, File::RDONLY | File::NOFOLLOW | File::BINARY, &:read)
++  json = self.open(path, File::RDONLY | File::NOFOLLOW | File::BINARY, &:read)
+   data = JSON.parse(json.force_encoding(Encoding::UTF_8))
+   if data.is_a?(Hash) && data["version"] == VERSION
+     servers = data["servers"]
+   end
+   if valid?(servers)
+     return servers
+   end
+   ignore("not a syncbox #{VERSION} state file")
+ rescue Errno::ENOENT
+   {}
+ rescue SystemCallError, IOError => e
+   ignore(LocalDir.reason(e))
+ rescue JSON::ParserError, EncodingError
+   ignore("invalid JSON")
+ end
+-----------------------
+(42 more alive mutation(s), use `mutant session subject Syncbox::Client::SyncState#read` to see all details)
+Syncbox::Server::App#decode_key:/app/lib/syncbox/server/app.rb:85
+tests: 217, runtime: 131.47s, killtime: 129.90s
+evil:Syncbox::Server::App#decode_key:/app/lib/syncbox/server/app.rb:85:6c9f7
+-----------------------
+@@ -1,5 +1,5 @@
+ def decode_key(raw_key)
+-  URI.decode_uri_component(raw_key, Encoding::BINARY)
++  URI.decode_uri_component(raw_key)
+ rescue ArgumentError
+   raise(InvalidKeyError, "malformed percent-encoding")
+ end
+-----------------------
+(3 more alive mutation(s), use `mutant session subject Syncbox::Server::App#decode_key` to see all details)
+Syncbox::Server::App#get_blob:/app/lib/syncbox/server/app.rb:66
+tests: 217, runtime: 180.58s, killtime: 172.79s
+evil:Syncbox::Server::App#get_blob:/app/lib/syncbox/server/app.rb:66:d0824
+-----------------------
+@@ -1,10 +1,10 @@
+ def get_blob(raw_key)
+   file = @store.open(decode_key(raw_key))
+   unless file
+     return text(404, "not found\n")
+   end
+-  headers = { "content-type" => "application/octet-stream", "content-length" => file.size.to_s }
++  headers = { "content-type" => "application/octet-stream", "content-length" => "" }
+   [200, headers, FileBody.new(file)]
+ rescue InvalidKeyError => e
+   text(400, "invalid key: #{e.message}\n")
+ end
+-----------------------
+(7 more alive mutation(s), use `mutant session subject Syncbox::Server::App#get_blob` to see all details)
+Syncbox::Server::App#method_not_allowed:/app/lib/syncbox/server/app.rb:99
+tests: 217, runtime: 57.10s, killtime: 55.17s
+evil:Syncbox::Server::App#method_not_allowed:/app/lib/syncbox/server/app.rb:99:a5e62
+-----------------------
+@@ -1,3 +1,3 @@
+ def method_not_allowed(allow)
+-  text(405, "method not allowed\n", "allow" => allow)
++  text(405, "", "allow" => allow)
+ end
+-----------------------
+Syncbox::Server::App::FileBody#close:/app/lib/syncbox/server/app.rb:24
+tests: 217, runtime: 98.78s, killtime: 98.39s
+evil:Syncbox::Server::App::FileBody#close:/app/lib/syncbox/server/app.rb:24:5f575
+-----------------------
+@@ -1,3 +1,2 @@
+ def close
+-  @file.close
+ end
+-----------------------
+(2 more alive mutation(s), use `mutant session subject Syncbox::Server::App::FileBody#close` to see all details)
+Syncbox::Server::Store#blob_path:/app/lib/syncbox/server/store.rb:187
+tests: 217, runtime: 405.38s, killtime: 400.94s
+evil:Syncbox::Server::Store#blob_path:/app/lib/syncbox/server/store.rb:187:85b3d
+-----------------------
+@@ -1,7 +1,3 @@
+ def blob_path(key)
+-  path = File.expand_path(File.join(@blobs_dir, key.b)).b
+-  unless path.start_with?("#{@blobs_dir}/")
+-    raise(InvalidKeyError, "key resolves outside the store")
+-  end
+-  path
++  raise
+ end
+-----------------------
+(30 more alive mutation(s), use `mutant session subject Syncbox::Server::Store#blob_path` to see all details)
+Syncbox::Server::Store#each_entry:/app/lib/syncbox/server/store.rb:279
+tests: 217, runtime: 296.63s, killtime: 168.41s
+evil:Syncbox::Server::Store#each_entry:/app/lib/syncbox/server/store.rb:279:ed7dc
+-----------------------
+@@ -1,21 +1,21 @@
+ def each_entry(dir, prefix)
+   Dir.children(dir, encoding: Encoding::BINARY).each { |raw_name|
+     name = raw_name.dup.force_encoding(Encoding::UTF_8)
+     unless name.valid_encoding?
+-      next
++      break
+     end
+     path = File.join(dir, raw_name)
+ 
+     begin
+       stat = File.lstat(path)
+     rescue SystemCallError
+       next
+     end
+     yield(path, if prefix
+       "#{prefix}/#{name}"
+     else
+       name
+     end, stat)
+   }
+ rescue SystemCallError
+ end
+-----------------------
+(3 more alive mutation(s), use `mutant session subject Syncbox::Server::Store#each_entry` to see all details)
+Syncbox::Server::Store#prune_empty_dirs:/app/lib/syncbox/server/store.rb:269
+tests: 217, runtime: 655.46s, killtime: 518.51s
+evil:Syncbox::Server::Store#prune_empty_dirs:/app/lib/syncbox/server/store.rb:269:1034a
+-----------------------
+@@ -1,7 +1,7 @@
+ def prune_empty_dirs(dir)
+-  while dir.bytesize > @blobs_dir.bytesize
++  while dir.bytesize
+     Dir.rmdir(dir)
+     dir = File.dirname(dir)
+   end
+ rescue SystemCallError
+ end
+-----------------------
+Syncbox::Server::Store#staging_path:/app/lib/syncbox/server/store.rb:167
+tests: 217, runtime: 136.10s, killtime: 133.40s
+evil:Syncbox::Server::Store#staging_path:/app/lib/syncbox/server/store.rb:167:eac32
+-----------------------
+@@ -1,3 +1,3 @@
+ def staging_path
+-  File.join(@tmp_dir, "#{SecureRandom.hex(16)}#{STAGING_SUFFIX}")
++  raise
+ end
+-----------------------
+(21 more alive mutation(s), use `mutant session subject Syncbox::Server::Store#staging_path` to see all details)
+Mutant environment:
+Usage:           opensource
+Matcher:         #<Mutant::Matcher::Config subjects: [Syncbox::Client::CLI.run,Syncbox::Client::Failures#initialize,Syncbox::Client::LocalDir#children,Syncbox::Client::LocalDir#initialize,Syncbox::Client::LocalDir#reading,Syncbox::Client::LocalDir#write,Syncbox::Client::LocalDir.sha256,Syncbox::Client::Pull#run,Syncbox::Client::Remote#list,Syncbox::Client::Remote#network_failure,Syncbox::Client::Remote#request,Syncbox::Client::Remote.escape_key,Syncbox::Client::Remote::BlockError#initialize,Syncbox::Client::Status#report,Syncbox::Client::Sync#comparable_times,Syncbox::Client::SyncState#keys,Syncbox::Client::SyncState#read,Syncbox::Server::App#decode_key,Syncbox::Server::App#get_blob,Syncbox::Server::App#method_not_allowed,Syncbox::Server::App::FileBody#close,Syncbox::Server::Store#blob_path,Syncbox::Server::Store#each_entry,Syncbox::Server::Store#prune_empty_dirs,Syncbox::Server::Store#staging_path]>Uncovered mutations detected, exiting nonzero!
+
+Integration:     minitest
+Jobs:            6
+Includes:        []
+Requires:        ["./mutant_boot"]
+Operators:       light
+MutationTimeout: 120
+Selection:       expression
+Subjects:        25
+All-Tests:       217
+Available-Tests: 217
+Selected-Tests:  217
+Tests/Subject:   8.68 avg
+Mutations:       1637
+Results:         1637
+Kills:           1341
+Alive:           296
+Timeouts:        4
+Runtime:         2333.04s
+Killtime:        12938.74s
+Efficiency:      554.59%
+Mutations/s:     0.70
+Coverage:        81.91%

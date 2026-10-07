@@ -1,0 +1,10 @@
+patched: test/client_status_test.rb
+patched: test/client_sync_test.rb
+patched: test/server_process_test.rb
+patched: test/client_push_test.rb
+patched: test/blobs_test.rb
+patched: test/traversal_test.rb
+patched: test/delete_blob_test.rb
+patched: test/client_pull_test.rb
+patched: test/list_blobs_test.rb
+patched: lib/syncbox/server/store.rb

@@ -1,0 +1,6 @@
+#!/bin/sh
+# The Syncbox CLI client: `syncbox <push|pull|status|sync> <dir> --server <url>`.
+# Runs the compiled entry point that sits next to this script's real location.
+set -e
+here="$(dirname "$(readlink -f "$0")")"
+exec node "$here/../dist/src/syncbox.js" "$@"

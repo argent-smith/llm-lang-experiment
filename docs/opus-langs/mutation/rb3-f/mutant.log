@@ -1,0 +1,1101 @@
+Mutant environment:
+Usage:           opensource
+Matcher:         #<Mutant::Matcher::Config subjects: [Syncbox::App#put_blob,Syncbox::Client.reserved_key_reason,Syncbox::Client::Api#connect,Syncbox::Client::Api#describe,Syncbox::Client::Api#initialize,Syncbox::Client::Api#request,Syncbox::Client::Api.describe_error,Syncbox::Client::Api.open,Syncbox::Client::Failures#add,Syncbox::Client::Failures#any?,Syncbox::Client::Failures.display_key,Syncbox::Client::LocalTarget#inside?,Syncbox::Client::LocalTree#scan,Syncbox::Client::Pull#initialize,Syncbox::Client::Push#digest,Syncbox::Client::Push#summary_line,Syncbox::Client::Status#initialize,Syncbox::Client::Status#summary_line,Syncbox::Client::Sync#apply,Syncbox::Client::Sync#decide,Syncbox::Client::Sync#parse_modified_at,Syncbox::Client::Sync#upload,Syncbox::Client::SyncState#initialize,Syncbox::Client::SyncState#keys,Syncbox::Config.parse_port,Syncbox::Store#cached_digest,Syncbox::Store#ensure_parent_dir,Syncbox::Store#flush_to_disk,Syncbox::Store#forget_digest,Syncbox::Store#initialize,Syncbox::Store#remove_stale_tmp_files,Syncbox::Store#resolve_existing_prefix,Syncbox::Store#strictly_inside?,Syncbox::TestSupport#wait_for_healthz,Syncbox::TestSupport::FakeServer#initialize,Syncbox::TestSupport::FakeServer#refuse_connections,Syncbox::TestSupport::FakeServer.listing,Syncbox::TestSupport::ServerProcess#list]>
+Integration:     minitest
+Jobs:            6
+Includes:        []
+Requires:        ["./mutant_boot"]
+Operators:       light
+MutationTimeout: 120
+Selection:       expression
+Subjects:        38
+All-Tests:       387
+Available-Tests: 387
+Selected-Tests:  387
+Tests/Subject:   10.18 avg
+Mutations:       1640
+Uncovered mutations detected, exiting nonzero!
+Alive mutations require one of two actions:
+A) Keep the mutated code: Your tests specify the correct semantics,
+   and the original code is redundant. Accept the mutation.
+B) Add a missing test: The original code is correct, but the tests
+   do not verify the behavior the mutation removed.
+Syncbox::Client::Api#connect:/app/lib/syncbox/client/api.rb:114
+tests: 387, runtime: 589.42s, killtime: 587.29s
+evil:Syncbox::Client::Api#connect:/app/lib/syncbox/client/api.rb:114:e05d5
+-----------------------
+@@ -1,7 +1,5 @@
+ def connect
+-  unless @http.started?
+-    @http.start
+-  end
++  nil
+ rescue *NETWORK_ERRORS => e
+   raise(ServerUnreachable, "cannot connect to server #{@base_url}: #{self.class.describe_error(e)}")
+ end
+-----------------------
+(8 more alive mutation(s), use `mutant session subject Syncbox::Client::Api#connect` to see all details)
+Syncbox::Client::Api#describe:/app/lib/syncbox/client/api.rb:202
+tests: 387, runtime: 964.58s, killtime: 956.57s
+evil:Syncbox::Client::Api#describe:/app/lib/syncbox/client/api.rb:202:753c7
+-----------------------
+@@ -1,17 +1,15 @@
+ def describe(response)
+   body = response.body.to_s
+-  if body.empty?
+-    return ""
+-  end
++  nil
+   text = begin
+     payload = JSON.parse(body)
+     if payload.is_a?(Hash)
+       (payload["message"] || payload["error"])
+     else
+       nil
+     end
+   rescue JSON::ParserError
+     nil
+   end
+   ": #{text || body.b[0, ERROR_BODY_LIMIT].scrub}"
+ end
+-----------------------
+(14 more alive mutation(s), use `mutant session subject Syncbox::Client::Api#describe` to see all details)
+Syncbox::Client::Api#initialize:/app/lib/syncbox/client/api.rb:99
+tests: 387, runtime: 2976.02s, killtime: 2128.09s
+evil:Syncbox::Client::Api#initialize:/app/lib/syncbox/client/api.rb:99:69273
+-----------------------
+@@ -1,11 +1,11 @@
+ def initialize(base_url)
+   @base_url = base_url
+   @prefix = base_url.path
+   @http = Net::HTTP.new(base_url.host, base_url.port)
+-  @http.use_ssl=base_url.scheme == "https"
++  nil
+   timeouts = self.class.timeouts
+   @http.open_timeout=timeouts[:open]
+   @http.read_timeout=timeouts[:read]
+   @http.write_timeout=timeouts[:write]
+   @http.max_retries=0
+ end
+-----------------------
+(20 more alive mutation(s), use `mutant session subject Syncbox::Client::Api#initialize` to see all details)
+Syncbox::Client::Api.describe_error:/app/lib/syncbox/client/api.rb:74
+tests: 387, runtime: 1247.27s, killtime: 1240.55s
+evil:Syncbox::Client::Api.describe_error:/app/lib/syncbox/client/api.rb:74:14da7
+-----------------------
+@@ -1,14 +1,14 @@
+ def self.describe_error(error)
+   case error
+   when Net::OpenTimeout
+-    "connection timed out after #{timeouts[:open]}s"
++    "connection timed out after #{nil}s"
+   when Net::ReadTimeout
+     "server did not respond within #{timeouts[:read]}s (read timeout)"
+   when Net::WriteTimeout
+     "server did not accept data within #{timeouts[:write]}s (write timeout)"
+   when EOFError
+     "server closed the connection without a complete response"
+   else
+     error.message.sub(/\AFailed to open TCP connection to \S+ \((.*)\)\z/m, "\\1")
+   end
+ end
+-----------------------
+(22 more alive mutation(s), use `mutant session subject Syncbox::Client::Api.describe_error` to see all details)
+Syncbox::Client::Api.open:/app/lib/syncbox/client/api.rb:63
+tests: 387, runtime: 368.44s, killtime: 366.66s
+evil:Syncbox::Client::Api.open:/app/lib/syncbox/client/api.rb:63:591e5
+-----------------------
+@@ -1,10 +1,10 @@
+ def self.open(base_url)
+   api = new(base_url)
+-  api.connect
++  nil
+ 
+   begin
+     yield(api)
+   ensure
+     api.close
+   end
+ end
+-----------------------
+(5 more alive mutation(s), use `mutant session subject Syncbox::Client::Api.open` to see all details)
+Syncbox::Client::Failures#add:/app/lib/syncbox/client/failures.rb:38
+tests: 387, runtime: 182.28s, killtime: 179.93s
+evil:Syncbox::Client::Failures#add:/app/lib/syncbox/client/failures.rb:38:53761
+-----------------------
+@@ -1,4 +1,4 @@
+ def add(key, reason)
+   @list << Failure.new(key, reason)
+-  @err.puts("syncbox: failed #{self.class.display_key(key)}: #{reason}")
++  @err.puts("syncbox: failed #{key}: #{reason}")
+ end
+-----------------------
+Syncbox::Client::Failures.display_key:/app/lib/syncbox/client/failures.rb:56
+tests: 387, runtime: 1014.30s, killtime: 1010.15s
+evil:Syncbox::Client::Failures.display_key:/app/lib/syncbox/client/failures.rb:56:35a7f
+-----------------------
+@@ -1,7 +1,7 @@
+ def self.display_key(key)
+-  if key.is_a?(String) && !key.empty? && !key.match?(/[[:cntrl:]]/)
++  if key.is_a?(String) && !key.empty?
+     key
+   else
+     key.inspect
+   end
+ end
+-----------------------
+(18 more alive mutation(s), use `mutant session subject Syncbox::Client::Failures.display_key` to see all details)
+Syncbox::Client::LocalTarget#inside?:/app/lib/syncbox/client/local_target.rb:41
+tests: 387, runtime: 1330.18s, killtime: 1327.48s
+evil:Syncbox::Client::LocalTarget#inside?:/app/lib/syncbox/client/local_target.rb:41:4ffa2
+-----------------------
+@@ -1,7 +1,3 @@
+ def inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
+-    root
+-  else
+-    "#{root}/"
+-  end)
++  raise
+ end
+-----------------------
+(27 more alive mutation(s), use `mutant session subject Syncbox::Client::LocalTarget#inside?` to see all details)
+Syncbox::Client::LocalTree#scan:/app/lib/syncbox/client/local_tree.rb:51
+tests: 387, runtime: 1202.13s, killtime: 1199.63s
+evil:Syncbox::Client::LocalTree#scan:/app/lib/syncbox/client/local_tree.rb:51:348ef
+-----------------------
+@@ -1,6 +1,3 @@
+ def scan(dir, &on_skip)
+-  root = check_dir(dir)
+-  entries = []
+-  walk(root, "", entries, on_skip)
+-  entries.sort_by!(&:key)
++  raise
+ end
+-----------------------
+(25 more alive mutation(s), use `mutant session subject Syncbox::Client::LocalTree#scan` to see all details)
+Syncbox::Client::Pull#initialize:/app/lib/syncbox/client/pull.rb:30
+tests: 387, runtime: 250.35s, killtime: 249.04s
+evil:Syncbox::Client::Pull#initialize:/app/lib/syncbox/client/pull.rb:30:16c7b
+-----------------------
+@@ -1,5 +1,5 @@
+-def initialize(options, out: $stdout, err: $stderr)
++def initialize(options, out:, err: $stderr)
+   @options = options
+   @out = out
+   @err = err
+ end
+-----------------------
+(3 more alive mutation(s), use `mutant session subject Syncbox::Client::Pull#initialize` to see all details)
+Syncbox::Client::Status#initialize:/app/lib/syncbox/client/status.rb:42
+tests: 387, runtime: 247.00s, killtime: 245.81s
+evil:Syncbox::Client::Status#initialize:/app/lib/syncbox/client/status.rb:42:ce74e
+-----------------------
+@@ -1,5 +1,5 @@
+-def initialize(options, out: $stdout, err: $stderr)
++def initialize(options, out:, err: $stderr)
+   @options = options
+   @out = out
+   @err = err
+ end
+-----------------------
+(3 more alive mutation(s), use `mutant session subject Syncbox::Client::Status#initialize` to see all details)
+Syncbox::Client::Status#summary_line:/app/lib/syncbox/client/status.rb:121
+tests: 387, runtime: 484.64s, killtime: 481.24s
+evil:Syncbox::Client::Status#summary_line:/app/lib/syncbox/client/status.rb:121:2d93d
+-----------------------
+@@ -1,12 +1,12 @@
+ def summary_line(summary)
+   if summary.in_sync?
+     "status: in sync, #{summary.unchanged} unchanged, nothing to upload or download (dry run, nothing changed)"
+   else
+     failed = if summary.failed.zero?
+-      ""
++      nil
+     else
+       "#{summary.failed} failed (not compared), "
+     end
+     "status: #{failed}#{summary.to_upload} to upload (#{summary.local_only} only local), " "#{summary.to_download} to download (#{summary.remote_only} only on server), " "#{summary.differing} differing on both sides, #{summary.unchanged} unchanged, " "#{summary.total} files total (dry run, nothing changed)"
+   end
+ end
+-----------------------
+(1 more alive mutation(s), use `mutant session subject Syncbox::Client::Status#summary_line` to see all details)
+Syncbox::Client::Sync#decide:/app/lib/syncbox/client/sync.rb:140
+tests: 387, runtime: 2784.66s, killtime: 2770.95s
+evil:Syncbox::Client::Sync#decide:/app/lib/syncbox/client/sync.rb:140:abce3
+-----------------------
+@@ -1,20 +1,20 @@
+ def decide(key, local, remote, base_sha256)
+   if remote.nil?
+-    return Decision.new(:upload, "only local", false)
++    return Decision.new(:upload, "only local")
+   end
+   if local.nil?
+     return Decision.new(:download, "only on server", false)
+   end
+   if local.sha256 == remote.sha256
+     return Decision.new(:unchanged, nil, false)
+   end
+   if base_sha256
+     if local.sha256 == base_sha256
+       return Decision.new(:download, "changed on server", false)
+     end
+     if remote.sha256 == base_sha256
+       return Decision.new(:upload, "changed locally", false)
+     end
+   end
+   resolve_conflict(key, local, remote, never_synced: base_sha256.nil?)
+ end
+-----------------------
+(11 more alive mutation(s), use `mutant session subject Syncbox::Client::Sync#decide` to see all details)
+Syncbox::Client::Sync#parse_modified_at:/app/lib/syncbox/client/sync.rb:172
+tests: 387, runtime: 2471.55s, killtime: 2462.89s
+evil:Syncbox::Client::Sync#parse_modified_at:/app/lib/syncbox/client/sync.rb:172:4b7ae
+-----------------------
+@@ -1,9 +1,9 @@
+ def parse_modified_at(key, value)
+-  unless value.is_a?(String)
++  unless value
+     raise(Error, "GET /blobs: entry #{key.inspect} has no modified_at, cannot resolve the conflict")
+   end
+   digits = value[/\.(\d+)(?=Z|[+-]\d{2}:?\d{2}\z)/, 1]&.length || 0
+   [Time.iso8601(value), digits]
+ rescue ArgumentError => e
+   raise(Error, "GET /blobs: entry #{key.inspect} has malformed modified_at #{value.inspect}: #{e.message}")
+ end
+-----------------------
+(6 more alive mutation(s), use `mutant session subject Syncbox::Client::Sync#parse_modified_at` to see all details)
+Syncbox::Client::Sync#upload:/app/lib/syncbox/client/sync.rb:207
+tests: 387, runtime: 328.66s, killtime: 325.33s
+evil:Syncbox::Client::Sync#upload:/app/lib/syncbox/client/sync.rb:207:b9eba
+-----------------------
+@@ -1,5 +1,5 @@
+ def upload(api, key, local)
+-  File.open(local.path, "rb") { |file|
++  self.open(local.path, "rb") { |file|
+     Transfer.upload(api, key, file, file.stat.size, local.sha256)
+   }
+ end
+-----------------------
+(3 more alive mutation(s), use `mutant session subject Syncbox::Client::Sync#upload` to see all details)
+Syncbox::Client::SyncState#initialize:/app/lib/syncbox/client/sync_state.rb:34
+tests: 387, runtime: 202.10s, killtime: 199.58s
+evil:Syncbox::Client::SyncState#initialize:/app/lib/syncbox/client/sync_state.rb:34:a01fc
+-----------------------
+@@ -1,5 +1,5 @@
+ def initialize(root)
+   @dir = File.join(root, STATE_DIR)
+   @path = File.join(@dir, FILE_NAME)
+-  @files = {}
++  @files = nil
+ end
+-----------------------
+(1 more alive mutation(s), use `mutant session subject Syncbox::Client::SyncState#initialize` to see all details)
+Syncbox::Client::SyncState#keys:/app/lib/syncbox/client/sync_state.rb:44
+tests: 387, runtime: 318.62s, killtime: 317.72s
+evil:Syncbox::Client::SyncState#keys:/app/lib/syncbox/client/sync_state.rb:44:20f6a
+-----------------------
+@@ -1,3 +1,3 @@
+ def keys
+-  @files.keys
++  raise
+ end
+-----------------------
+(4 more alive mutation(s), use `mutant session subject Syncbox::Client::SyncState#keys` to see all details)
+Syncbox::Config.parse_port:/app/lib/syncbox/config.rb:69
+tests: 387, runtime: 3104.23s, killtime: 3097.11s
+evil:Syncbox::Config.parse_port:/app/lib/syncbox/config.rb:69:b0ed1
+-----------------------
+@@ -1,11 +1,11 @@
+ def self.parse_port(value, source:, blank_is_default: true)
+   value = presence(value)
+   if value.nil? && blank_is_default
+     return DEFAULT_PORT
+   end
+-  port = Integer(value.to_s, 10, exception: false)
++  port = Integer(value, 10, exception: false)
+   unless port && PORT_RANGE.cover?(port)
+     raise(UsageError, "invalid #{source} value #{value.inspect}: expected an integer in #{PORT_RANGE}")
+   end
+   port
+ end
+-----------------------
+(7 more alive mutation(s), use `mutant session subject Syncbox::Config.parse_port` to see all details)
+Syncbox::Store#cached_digest:/app/lib/syncbox/store.rb:307
+tests: 387, runtime: 517.33s, killtime: 514.29s
+evil:Syncbox::Store#cached_digest:/app/lib/syncbox/store.rb:307:9bae6
+-----------------------
+@@ -1,8 +1,6 @@
+ def cached_digest(key, stat)
+-  @digests_lock.synchronize {
+-    entry = @digests[key]
+-    if entry&.matches?(stat)
+-      entry.sha256
+-    end
+-  }
++  entry = @digests[key]
++  if entry&.matches?(stat)
++    entry.sha256
++  end
+ end
+-----------------------
+Syncbox::Store#flush_to_disk:/app/lib/syncbox/store.rb:414
+tests: 387, runtime: 263.86s, killtime: 263.16s
+evil:Syncbox::Store#flush_to_disk:/app/lib/syncbox/store.rb:414:4b7df
+-----------------------
+@@ -1,5 +1,5 @@
+ def flush_to_disk(file)
+-  file.fsync
++  nil
+ rescue Errno::EINVAL, Errno::ENOTSUP, NotImplementedError
+   nil
+ end
+-----------------------
+(4 more alive mutation(s), use `mutant session subject Syncbox::Store#flush_to_disk` to see all details)
+Syncbox::Store#forget_digest:/app/lib/syncbox/store.rb:319
+tests: 387, runtime: 444.70s, killtime: 443.64s
+evil:Syncbox::Store#forget_digest:/app/lib/syncbox/store.rb:319:b19fe
+-----------------------
+@@ -1,5 +1,3 @@
+ def forget_digest(key)
+-  @digests_lock.synchronize {
+-    @digests.delete(key)
+-  }
++  nil
+ end
+-----------------------
+(8 more alive mutation(s), use `mutant session subject Syncbox::Store#forget_digest` to see all details)
+Syncbox::Store#initialize:/app/lib/syncbox/store.rb:93
+tests: 387, runtime: 90.80s, killtime: 88.69s
+evil:Syncbox::Store#initialize:/app/lib/syncbox/store.rb:93:1abb2
+-----------------------
+@@ -1,6 +1,6 @@
+ def initialize(root)
+-  @root = File.expand_path(root)
++  @root = root
+   @digests = {}
+   @digests_lock = Mutex.new
+   remove_stale_tmp_files
+ end
+-----------------------
+Syncbox::Store#remove_stale_tmp_files:/app/lib/syncbox/store.rb:247
+tests: 387, runtime: 845.56s, killtime: 839.32s
+evil:Syncbox::Store#remove_stale_tmp_files:/app/lib/syncbox/store.rb:247:b6e3c
+-----------------------
+@@ -1,14 +1,14 @@
+ def remove_stale_tmp_files
+   dir = File.join(@root, TMP_DIR)
+   Dir.children(dir).count do |name|
+     unless name.end_with?(TMP_SUFFIX)
+-      next false
++      next true
+     end
+     File.delete(File.join(dir, name))
+     true
+   rescue SystemCallError
+     false
+   end
+ rescue Errno::ENOENT, Errno::ENOTDIR
+   0
+ end
+-----------------------
+(4 more alive mutation(s), use `mutant session subject Syncbox::Store#remove_stale_tmp_files` to see all details)
+Syncbox::Store#resolve_existing_prefix:/app/lib/syncbox/store.rb:350
+tests: 387, runtime: 1466.85s, killtime: 1222.20s
+evil:Syncbox::Store#resolve_existing_prefix:/app/lib/syncbox/store.rb:350:2f41e
+-----------------------
+@@ -1,16 +1,16 @@
+ def resolve_existing_prefix(path)
+   current = path
+   loop do
+     return File.realpath(current)
+   rescue Errno::ENOENT, Errno::ENOTDIR
+     parent = File.dirname(current)
+-    if parent == current
++    if nil
+       raise
+     end
+     current = parent
+   end
+ rescue Errno::ELOOP
+   raise(InvalidKey, "key resolves through a symlink loop")
+ rescue *KEY_ERRORS => e
+   raise(InvalidKey, "key cannot be resolved to a file: #{e.message}")
+ end
+-----------------------
+(19 more alive mutation(s), use `mutant session subject Syncbox::Store#resolve_existing_prefix` to see all details)
+Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345
+tests: 387, runtime: 558.40s, killtime: 555.77s
+neutral:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:08f34
+-----------------------
+Killfork: #<Mutant::Result::ProcessStatus exitstatus=0>
+Killfork log (combined stderr and stdout):
+Run options: 
+
+# Running:
+
+
+
+Finished in 22.371566s, 9.4316 runs/s, 43.0457 assertions/s.
+
+  1) Failure:
+ClientPushTest#test_server_rejecting_a_key_is_a_per_file_failure_and_the_other_files_are_still_pushed [test/client_push_test.rb:174]:
+the push continues past the failed file.
+Expected: ["a.txt"]
+  Actual: ["a.txt", "b.txt"]
+
+211 runs, 963 assertions, 1 failures, 0 errors, 0 skips
+--- Neutral failure ---
+Original code was inserted unmutated. And the test did NOT PASS.
+Your tests do not pass initially or you found a bug in mutant / unparser.
+Subject AST:
+s(:def, :strictly_inside?,
+  s(:args,
+    s(:arg, :path),
+    s(:arg, :root)),
+  s(:send,
+    s(:lvar, :path), :start_with?,
+    s(:if,
+      s(:send,
+        s(:lvar, :root), :end_with?,
+        s(:str, "/")),
+      s(:lvar, :root),
+      s(:dstr,
+        s(:begin,
+          s(:lvar, :root)),
+        s(:str, "/")))))
+Unparsed Source:
+def strictly_inside?(path, root)
+  path.start_with?(if root.end_with?("/")
+    root
+  else
+    "#{root}/"
+  end)
+end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:27f15
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
++  path.start_with?(if nil
+     root
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:fe2b5
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
++  path.start_with?(if root
+     root
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:e882c
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
++  path.start_with?(if root.start_with?("/")
+     root
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:c804a
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
++  path.start_with?(if true
+     root
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:b3f11
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
++  path.start_with?(if false
+     root
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:3f232
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
++  path.start_with?(if "/"
+     root
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:5c7d9
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
++  path.start_with?(if root.end_with?("")
+     root
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:01aa8
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
++  path.start_with?(if root.end_with?
+     root
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:1f7b3
+-----------------------
+@@ -1,7 +1,3 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
+-    root
+-  else
+-    "#{root}/"
+-  end)
++  path.start_with?(root)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:608a3
+-----------------------
+@@ -1,7 +1,7 @@
+ def strictly_inside?(path, root)
+   path.start_with?(if root.end_with?("/")
+-    root
++    nil
+   else
+     "#{root}/"
+   end)
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:32a90
+-----------------------
+@@ -1,7 +1,3 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
+-    root
+-  else
+-    "#{root}/"
+-  end)
++  path.start_with?("#{root}/")
+ end
+-----------------------
+evil:Syncbox::Store#strictly_inside?:/app/lib/syncbox/store.rb:345:6bf56
+-----------------------
+@@ -1,7 +1,5 @@
+ def strictly_inside?(path, root)
+-  path.start_with?(if root.end_with?("/")
+-    root
+-  else
++  path.start_with?(unless root.end_with?("/")
+     "#{root}/"
+   end)
+ end
+-----------------------
+selected tests (387):
+- minitest:AppTest#test_put_rejects_fully_encoded_traversal_with_400
+- minitest:AppTest#test_get_rejects_overlong_UTF_8_dots_with_400
+- minitest:AppTest#test_get_rejects_parent_segment_with_400
+- minitest:AppTest#test_unknown_path_returns_404_json
+- minitest:AppTest#test_list_blobs_returns_metadata_sorted_by_key
+- minitest:AppTest#test_get_rejects_double_slash_with_400
+- minitest:AppTest#test_delete_rejects_trailing_slash_with_400
+- minitest:AppTest#test_put_leaves_no_temp_files_behind
+- minitest:AppTest#test_get_rejects_encoded_absolute_path_with_400
+- minitest:AppTest#test_put_rejects_key_exceeding_path_max_with_400
+- minitest:AppTest#test_put_rejects_invalid_UTF_8_with_400
+- minitest:AppTest#test_put_rejects_key_that_is_a_directory_with_400
+- minitest:AppTest#test_delete_decodes_percent_encoded_key
+- minitest:AppTest#test_put_rejects_encoded_absolute_path_with_400
+- minitest:AppTest#test_put_with_interrupted_body_returns_500_keeps_old_blob_and_leaves_no_temp_file
+- minitest:AppTest#test_get_rejects_parent_only_with_400
+- minitest:AppTest#test_put_rejects_parent_segment_with_400
+- minitest:AppTest#test_put_rejects_parent_only_with_400
+- minitest:AppTest#test_in_flight_temp_file_is_not_served_or_listed_even_though_it_exists_on_disk
+- minitest:AppTest#test_get_rejects_truncated_UTF_8_sequence_with_400
+- minitest:AppTest#test_put_two_keys_in_same_directory_keep_both
+- minitest:AppTest#test_delete_rejects_empty_with_400
+- minitest:AppTest#test_put_overwrites_existing_blob
+- minitest:AppTest#test_put_rejects_trailing_slash_with_400
+- minitest:AppTest#test_list_blobs_includes_files_placed_in_data_dir_directly
+- minitest:AppTest#test_put_rejects_half_encoded_parent_segment_with_400
+- minitest:AppTest#test_deleted_blob_disappears_from_list_but_others_remain
+- minitest:AppTest#test_get_rejects_deep_parent_chain_with_400
+- minitest:AppTest#test_put_rejects_empty_with_400
+- minitest:AppTest#test_put_without_content_type_still_stores_raw_bytes
+- minitest:AppTest#test_delete_removes_file_placed_in_data_dir_directly
+- minitest:AppTest#test_get_rejects_UTF_16_surrogate_with_400
+- minitest:AppTest#test_get_rejects_parent_segment_in_the_middle_with_400
+- minitest:AppTest#test_healthz_returns_200
+- minitest:AppTest#test_delete_rejects_NUL_before_parent_segment_with_400
+- minitest:AppTest#test_get_rejects_invalid_UTF_8_with_400
+- minitest:AppTest#test_delete_rejects_truncated_UTF_8_sequence_with_400
+- minitest:AppTest#test_put_decodes_percent_encoded_key
+- minitest:AppTest#test_get_missing_blob_next_to_existing_one_returns_404
+- minitest:AppTest#test_delete_rejects_encoded_parent_segment_with_400
+- minitest:AppTest#test_wrong_method_on_known_path_returns_405
+- minitest:AppTest#test_delete_rejects_parent_segment_at_the_end_with_400
+- minitest:AppTest#test_get_directory_key_returns_404
+- minitest:AppTest#test_put_then_get_roundtrip_binary
+- minitest:AppTest#test_get_missing_blob_returns_404
+- minitest:AppTest#test_key_can_be_put_as_file_after_deleting_blobs_beneath_it
+- minitest:AppTest#test_put_rejects_dot_segment_with_400
+- minitest:AppTest#test_put_rejects_NUL_byte_with_400
+- minitest:AppTest#test_get_rejects_NUL_before_parent_segment_with_400
+- minitest:AppTest#test_get_rejects_overlong_segment_with_400
+- minitest:AppTest#test_head_healthz_returns_200_without_body
+- minitest:AppTest#test_put_rejects_deep_parent_chain_with_400
+- minitest:AppTest#test_delete_rejects_invalid_UTF_8_with_400
+- minitest:AppTest#test_delete_then_put_same_key_again_works
+- minitest:AppTest#test_list_blobs_skips_temp_dir_and_non_key_entries
+- minitest:AppTest#test_put_rejects_parent_segment_in_the_middle_with_400
+- minitest:AppTest#test_delete_existing_blob_returns_204_then_404
+- minitest:AppTest#test_put_numeric_key_with_empty_body_returns_201
+- minitest:AppTest#test_delete_rejects_dot_segment_with_400
+- minitest:AppTest#test_put_rejects_overlong_segment_with_400
+- minitest:AppTest#test_get_rejects_NUL_byte_with_400
+- minitest:AppTest#test_get_rejects_fully_encoded_traversal_with_400
+- minitest:AppTest#test_get_rejects_dot_segment_with_400
+- minitest:AppTest#test_put_sha256_is_lowercase_hex_of_body
+- minitest:AppTest#test_get_rejects_half_encoded_parent_segment_with_400
+- minitest:AppTest#test_delete_rejects_parent_only_with_400
+- minitest:AppTest#test_get_rejects_absolute_path_with_400
+- minitest:AppTest#test_delete_rejects_overlong_UTF_8_dots_with_400
+- minitest:AppTest#test_put_rejects_encoded_slash_after_parent_with_400
+- minitest:AppTest#test_list_blobs_matches_openapi_blob_meta_schema
+- minitest:AppTest#test_put_rejects_key_under_existing_file_with_400
+- minitest:AppTest#test_get_rejects_encoded_parent_segment_with_400
+- minitest:AppTest#test_delete_rejects_fully_encoded_traversal_with_400
+- minitest:AppTest#test_key_is_decoded_exactly_once_so_double_encoded_parent_is_a_literal_name
+- minitest:AppTest#test_delete_directory_key_returns_404_and_keeps_children
+- minitest:AppTest#test_wrong_method_on_blob_key_returns_405
+- minitest:AppTest#test_delete_rejects_reserved_temp_dir_with_400
+- minitest:AppTest#test_traversal_through_symlink_inside_data_dir_is_rejected_on_every_endpoint
+- minitest:AppTest#test_get_rejects_empty_with_400
+- minitest:AppTest#test_put_rejects_double_slash_with_400
+- minitest:AppTest#test_delete_missing_blob_in_missing_directory_returns_404
+- minitest:AppTest#test_get_rejects_reserved_temp_dir_with_400
+- minitest:AppTest#test_concurrent_puts_to_the_same_key_yield_one_complete_version
+- minitest:AppTest#test_put_rejects_truncated_UTF_8_sequence_with_400
+- minitest:AppTest#test_get_rejects_parent_segment_at_the_end_with_400
+- minitest:AppTest#test_delete_rejects_half_encoded_parent_segment_with_400
+- minitest:AppTest#test_get_rejects_trailing_slash_with_400
+- minitest:AppTest#test_head_blob_returns_200_without_body
+- minitest:AppTest#test_delete_key_under_existing_file_returns_404
+- minitest:AppTest#test_stale_temp_files_are_swept_when_the_app_starts
+- minitest:AppTest#test_delete_rejects_absolute_path_with_400
+- minitest:AppTest#test_put_rejects_UTF_16_surrogate_with_400
+- minitest:AppTest#test_put_rejects_encoded_parent_segment_with_400
+- minitest:AppTest#test_put_rejects_absolute_path_with_400
+- minitest:AppTest#test_invalid_key_response_explains_the_reason
+- minitest:AppTest#test_put_rejects_parent_segment_at_the_end_with_400
+- minitest:AppTest#test_delete_rejects_deep_parent_chain_with_400
+- minitest:AppTest#test_delete_rejects_parent_segment_with_400
+- minitest:AppTest#test_delete_rejects_parent_segment_in_the_middle_with_400
+- minitest:AppTest#test_delete_rejects_NUL_byte_with_400
+- minitest:AppTest#test_put_rejects_NUL_before_parent_segment_with_400
+- minitest:AppTest#test_delete_rejects_encoded_absolute_path_with_400
+- minitest:AppTest#test_put_rejects_overlong_UTF_8_dots_with_400
+- minitest:AppTest#test_delete_rejects_encoded_slash_after_parent_with_400
+- minitest:AppTest#test_get_rejects_encoded_slash_after_parent_with_400
+- minitest:AppTest#test_delete_rejects_overlong_segment_with_400
+- minitest:AppTest#test_delete_keeps_siblings_and_their_dirs
+- minitest:AppTest#test_keys_that_only_look_like_traversal_are_stored_inside_the_data_dir
+- minitest:AppTest#test_list_blobs_reflects_overwrite_and_delete
+- minitest:AppTest#test_delete_204_has_no_body_and_no_content_type
+- minitest:AppTest#test_delete_rejects_double_slash_with_400
+- minitest:AppTest#test_head_blobs_returns_200_without_body
+- minitest:AppTest#test_put_creates_nested_directories_on_disk
+- minitest:AppTest#test_delete_ignores_query_string
+- minitest:AppTest#test_list_blobs_on_empty_store_returns_200_and_empty_array
+- minitest:AppTest#test_delete_missing_blob_returns_404
+- minitest:AppTest#test_list_blobs_ignores_query_string_and_rejects_trailing_slash_as_key
+- minitest:AppTest#test_delete_rejects_UTF_16_surrogate_with_400
+- minitest:AppTest#test_put_rejects_reserved_temp_dir_with_400
+- minitest:AppTest#test_get_missing_blob_in_missing_directory_returns_404
+- minitest:ClientApiTest#test_get_blob_404_is_an_error_and_the_connection_stays_usable
+- minitest:ClientApiTest#test_get_blob_escapes_the_key_in_the_url
+- minitest:ClientApiTest#test_get_blob_streams_the_body_in_chunks_and_returns_the_size
+- minitest:ClientApiTest#test_unexpected_status_becomes_an_error_with_the_server_message
+- minitest:ClientApiTest#test_escape_key_keeps_slashes_and_unreserved_characters_only
+- minitest:ClientApiTest#test_non_json_body_is_an_error
+- minitest:ClientApiTest#test_connection_lost_mid_session_is_an_error
+- minitest:ClientApiTest#test_put_streams_exactly_size_bytes_from_the_current_position
+- minitest:ClientApiTest#test_unreachable_server_is_an_error_not_a_hang
+- minitest:ClientApiTest#test_server_path_prefix_is_honoured
+- minitest:ClientApiTest#test_list_and_put_against_a_real_server
+- minitest:ClientFailuresTest#test_status_reports_an_unreadable_local_file_as_not_compared_and_still_compares_the_rest
+- minitest:ClientFailuresTest#test_push_continues_past_a_request_timeout_on_one_key
+- minitest:ClientFailuresTest#test_connection_refused_fails_every_command_quickly_with_the_reason
+- minitest:ClientFailuresTest#test_sync_continues_past_failures_in_both_directions_and_records_only_what_converged
+- minitest:ClientFailuresTest#test_sync_continues_past_an_unreadable_local_file_without_overwriting_it
+- minitest:ClientFailuresTest#test_server_that_drops_the_connection_fails_with_the_reason
+- minitest:ClientFailuresTest#test_successful_push_output_and_exit_code_are_unchanged
+- minitest:ClientFailuresTest#test_pull_continues_past_a_5xx_on_one_blob
+- minitest:ClientFailuresTest#test_connect_timeout_is_bounded_by_the_open_timeout
+- minitest:ClientFailuresTest#test_pull_continues_past_an_unwritable_target
+- minitest:ClientFailuresTest#test_push_continues_past_a_5xx_on_one_key
+- minitest:ClientFailuresTest#test_bin_exits_1_on_a_partial_failure_and_on_an_unreachable_server
+- minitest:ClientFailuresTest#test_server_that_accepts_but_never_responds_fails_every_command_after_the_read_timeout
+- minitest:ClientFailuresTest#test_api_distinguishes_a_failed_request_from_an_unreachable_server
+- minitest:ClientFailuresTest#test_unresolvable_host_fails_with_the_resolver_error
+- minitest:ClientFailuresTest#test_sync_keeps_the_old_common_state_for_a_failed_conflict_so_the_next_sync_resolves_it_again
+- minitest:ClientFailuresTest#test_push_continues_past_a_key_the_real_server_rejects_and_reports_it
+- minitest:ClientFailuresTest#test_push_continues_past_a_dropped_connection_on_one_key
+- minitest:ClientFailuresTest#test_server_dying_mid_push_aborts_with_cannot_connect_after_the_files_already_transferred
+- minitest:ClientFailuresTest#test_push_continues_past_an_unreadable_local_file
+- minitest:ClientFailuresTest#test_pull_continues_past_a_dropped_connection_and_a_timeout_on_specific_blobs
+- minitest:ClientLocalTreeTest#test_symlinks_to_files_are_included_and_symlinks_to_directories_are_not_followed
+- minitest:ClientLocalTreeTest#test_empty_directory_yields_nothing
+- minitest:ClientLocalTreeTest#test_missing_or_non_directory_path_is_an_error
+- minitest:ClientLocalTreeTest#test_non_regular_files_are_skipped_with_a_reason
+- minitest:ClientLocalTreeTest#test_client_state_dir_at_the_root_is_skipped_silently_but_not_deeper
+- minitest:ClientLocalTreeTest#test_accepts_relative_dir
+- minitest:ClientLocalTreeTest#test_keys_are_utf8_and_keep_spaces_and_unicode
+- minitest:ClientLocalTreeTest#test_file_name_that_is_not_valid_utf8_is_an_error
+- minitest:ClientLocalTreeTest#test_lists_regular_files_recursively_with_posix_keys_sorted
+- minitest:ClientOptionsTest#test_flag_takes_precedence_over_environment
+- minitest:ClientOptionsTest#test_dir_is_required
+- minitest:ClientOptionsTest#test_server_is_required
+- minitest:ClientOptionsTest#test_command_is_required
+- minitest:ClientOptionsTest#test_server_trailing_slashes_are_stripped
+- minitest:ClientOptionsTest#test_help_and_version
+- minitest:ClientOptionsTest#test_unknown_command_is_rejected
+- minitest:ClientOptionsTest#test_extra_positional_arguments_are_rejected
+- minitest:ClientOptionsTest#test_blank_environment_value_is_ignored
+- minitest:ClientOptionsTest#test_parses_command_dir_and_server_flag
+- minitest:ClientOptionsTest#test_all_four_commands_are_accepted
+- minitest:ClientOptionsTest#test_usage_mentions_commands_and_server_flag
+- minitest:ClientOptionsTest#test_unknown_flags_are_rejected
+- minitest:ClientOptionsTest#test_invalid_server_urls_are_rejected
+- minitest:ClientOptionsTest#test_https_is_accepted
+- minitest:ClientOptionsTest#test_server_flag_without_value_is_rejected
+- minitest:ClientOptionsTest#test_server_falls_back_to_environment_variable
+- minitest:ClientOptionsTest#test_flag_may_use_equals_form_and_come_first
+- minitest:ClientPullTest#test_symlink_to_a_directory_at_the_target_is_not_replaced_or_written_through
+- minitest:ClientPullTest#test_only_changed_and_missing_blobs_are_downloaded_and_local_extras_are_kept
+- minitest:ClientPullTest#test_second_pull_downloads_nothing_and_touches_nothing
+- minitest:ClientPullTest#test_blobs_under_the_client_state_dir_are_skipped_with_a_warning
+- minitest:ClientPullTest#test_traversal_keys_from_the_server_are_refused_and_nothing_is_written
+- minitest:ClientPullTest#test_large_blob_is_streamed_intact
+- minitest:ClientPullTest#test_symlink_to_a_file_is_compared_by_target_and_replaced_by_a_regular_file
+- minitest:ClientPullTest#test_symlinked_dir_itself_is_fine
+- minitest:ClientPullTest#test_directory_in_the_way_fails_with_exit_1
+- minitest:ClientPullTest#test_blob_missing_after_listing_fails_with_the_server_status
+- minitest:ClientPullTest#test_touched_local_file_with_same_content_is_not_downloaded
+- minitest:ClientPullTest#test_file_in_the_way_of_a_parent_directory_fails_with_exit_1
+- minitest:ClientPullTest#test_pull_then_push_round_trip_transfers_nothing_more
+- minitest:ClientPullTest#test_first_pull_downloads_every_blob_into_the_right_paths
+- minitest:ClientPullTest#test_unreachable_server_fails_with_a_message_and_exit_1
+- minitest:ClientPullTest#test_bin_pull_with_server_from_environment
+- minitest:ClientPullTest#test_same_size_different_content_is_detected_by_sha256
+- minitest:ClientPullTest#test_bin_pull_exit_codes
+- minitest:ClientPullTest#test_replaced_file_keeps_its_permission_bits_and_new_files_get_default_ones
+- minitest:ClientPullTest#test_unwritable_directory_fails_with_exit_1_and_leaves_no_temp_files
+- minitest:ClientPullTest#test_unreadable_local_file_fails_with_exit_1
+- minitest:ClientPullTest#test_key_resolving_through_a_symlinked_directory_outside_dir_is_refused
+- minitest:ClientPullTest#test_hash_mismatch_between_listing_and_body_fails_and_leaves_no_file
+- minitest:ClientPullTest#test_missing_directory_fails_with_exit_1_before_touching_the_network
+- minitest:ClientPullTest#test_malformed_listing_entry_is_an_error
+- minitest:ClientPullTest#test_empty_server_pulls_nothing_successfully
+- minitest:ClientPushTest#test_first_push_uploads_every_file_and_reports_it
+- minitest:ClientPushTest#test_unreachable_server_fails_with_a_message_and_exit_1
+- minitest:ClientPushTest#test_only_changed_and_new_files_are_uploaded_and_server_extras_are_kept
+- minitest:ClientPushTest#test_empty_directory_pushes_nothing_successfully
+- minitest:ClientPushTest#test_missing_directory_fails_with_exit_1
+- minitest:ClientPushTest#test_server_rejecting_a_key_is_a_per_file_failure_and_the_other_files_are_still_pushed
+- minitest:ClientPushTest#test_help_exits_0
+- minitest:ClientPushTest#test_bin_push_with_server_from_environment
+- minitest:ClientPushTest#test_unreadable_file_is_a_per_file_failure_with_exit_1
+- minitest:ClientPushTest#test_bin_exit_codes
+- minitest:ClientPushTest#test_usage_errors_exit_2_with_usage_text
+- minitest:ClientPushTest#test_second_push_uploads_nothing
+- minitest:ClientPushTest#test_same_size_different_content_is_detected_by_sha256
+- minitest:ClientPushTest#test_touching_a_file_without_changing_content_does_not_upload
+- minitest:ClientPushTest#test_skipped_entries_are_reported_on_stderr_and_do_not_fail_the_push
+- minitest:ClientPushTest#test_large_file_is_streamed_intact
+- minitest:ClientStatusTest#test_file_differing_by_content_is_reported_in_both_directions
+- minitest:ClientStatusTest#test_status_works_on_a_read_only_directory
+- minitest:ClientStatusTest#test_local_only_file_would_be_uploaded
+- minitest:ClientStatusTest#test_only_the_listing_is_requested_from_the_server
+- minitest:ClientStatusTest#test_empty_dir_and_empty_server_are_in_sync
+- minitest:ClientStatusTest#test_status_changes_nothing_on_either_side
+- minitest:ClientStatusTest#test_identical_files_are_unchanged_even_with_a_different_mtime
+- minitest:ClientStatusTest#test_symlink_to_a_file_is_compared_by_target_content
+- minitest:ClientStatusTest#test_malformed_listing_entry_is_an_error
+- minitest:ClientStatusTest#test_bin_status_with_server_from_environment_exits_0_despite_differences
+- minitest:ClientStatusTest#test_skipped_entries_are_reported_on_stderr_and_do_not_fail_the_status
+- minitest:ClientStatusTest#test_bin_status_exit_codes
+- minitest:ClientStatusTest#test_unreadable_local_file_is_reported_as_not_compared_with_exit_1
+- minitest:ClientStatusTest#test_unreachable_server_fails_with_a_message_and_exit_1
+- minitest:ClientStatusTest#test_mixed_tree_is_reported_per_key_in_key_order
+- minitest:ClientStatusTest#test_missing_directory_fails_with_exit_1_before_touching_the_network
+- minitest:ClientStatusTest#test_server_only_blob_would_be_downloaded
+- minitest:ClientStatusTest#test_same_size_different_content_is_detected_by_sha256
+- minitest:ClientStatusTest#test_listing_without_size_is_still_compared
+- minitest:ClientSyncStateTest#test_replace_reports_whether_anything_changed
+- minitest:ClientSyncStateTest#test_missing_file_is_an_empty_state
+- minitest:ClientSyncStateTest#test_save_replaces_the_file_atomically_and_keeps_the_old_one_on_failure
+- minitest:ClientSyncStateTest#test_corrupt_files_are_rejected_with_the_path
+- minitest:ClientSyncStateTest#test_round_trip_is_sorted_and_versioned
+- minitest:ClientSyncStateTest#test_unwritable_directory_is_a_client_error
+- minitest:ClientReservedKeyTest#test_reserved_keys
+- minitest:ClientSyncTest#test_server_only_blob_appears_locally_with_its_subdirectories
+- minitest:ClientSyncTest#test_local_only_file_appears_on_the_server
+- minitest:ClientSyncTest#test_second_sync_transfers_nothing_and_touches_nothing
+- minitest:ClientSyncTest#test_conflict_with_a_newer_server_blob_is_won_by_the_server_version
+- minitest:ClientSyncTest#test_sync_never_deletes_on_either_side
+- minitest:ClientSyncTest#test_fractional_modified_at_is_compared_at_its_own_precision
+- minitest:ClientSyncTest#test_state_dir_is_invisible_to_push_status_and_sync_and_server_blobs_under_it_are_skipped
+- minitest:ClientSyncTest#test_state_is_saved_for_transferred_files_but_not_for_the_failed_one
+- minitest:ClientSyncTest#test_conflict_with_equal_mtime_is_won_by_the_local_version
+- minitest:ClientSyncTest#test_conflict_with_a_newer_local_file_is_won_by_the_local_version
+- minitest:ClientSyncTest#test_sub_second_local_mtime_difference_is_equality_at_the_servers_precision
+- minitest:ClientSyncTest#test_corrupt_state_file_fails_with_exit_1_before_touching_anything
+- minitest:ClientSyncTest#test_missing_directory_fails_with_exit_1_before_touching_the_network
+- minitest:ClientSyncTest#test_file_changed_only_locally_is_uploaded_even_if_the_server_copy_is_newer_by_mtime
+- minitest:ClientSyncTest#test_traversal_keys_from_the_server_are_refused
+- minitest:ClientSyncTest#test_bin_sync_with_server_from_environment
+- minitest:ClientSyncTest#test_same_content_on_both_sides_is_unchanged_and_recorded_as_common_state
+- minitest:ClientSyncTest#test_bin_sync_exit_codes
+- minitest:ClientSyncTest#test_mixed_tree_is_processed_in_key_order
+- minitest:ClientSyncTest#test_unreachable_server_fails_with_a_message_and_exit_1
+- minitest:ClientSyncTest#test_two_directories_converge_through_the_server
+- minitest:ClientSyncTest#test_first_sync_with_differing_content_and_no_common_state_follows_the_mtime_rule
+- minitest:ClientSyncTest#test_file_changed_only_on_the_server_is_downloaded_even_if_the_local_copy_is_newer_by_mtime
+- minitest:ClientSyncTest#test_large_files_round_trip_in_both_directions
+- minitest:ClientSyncTest#test_keys_gone_from_both_sides_are_dropped_from_the_state
+- minitest:ClientSyncTest#test_conflict_with_malformed_or_missing_modified_at_is_an_error
+- minitest:ConfigTest#test_empty_env_values_are_ignored
+- minitest:ConfigTest#test_env_variables_are_used_when_flags_absent
+- minitest:ConfigTest#test_flags_accept_equals_form
+- minitest:ConfigTest#test_port_defaults_to_8080
+- minitest:ConfigTest#test_data_dir_is_required
+- minitest:ConfigTest#test_flags_take_precedence_over_env
+- minitest:ConfigTest#test_data_dir_is_expanded_to_absolute_path
+- minitest:ConfigTest#test_help_is_reported_separately
+- minitest:ConfigTest#test_unknown_option_is_a_usage_error
+- minitest:ConfigTest#test_missing_option_argument_is_a_usage_error
+- minitest:ConfigTest#test_invalid_port_values_are_rejected
+- minitest:ConfigTest#test_flags_are_parsed
+- minitest:ServerCLITest#test_missing_data_dir_prints_usage_and_exits_2
+- minitest:ServerCLITest#test_invalid_port_exits_2
+- minitest:ServerCLITest#test_unwritable_data_dir_exits_1
+- minitest:ServerCLITest#test_help_exits_0
+- minitest:ServerCLITest#test_runs_server_with_parsed_config_and_creates_data_dir
+- minitest:ServerIntegrationTest#test_concurrent_puts_to_different_keys_over_http_do_not_interfere
+- minitest:ServerIntegrationTest#test_missing_data_dir_fails_fast_with_usage_error
+- minitest:ServerIntegrationTest#test_directory_traversal_is_rejected_over_http
+- minitest:ServerIntegrationTest#test_configuration_via_environment_variables
+- minitest:ServerIntegrationTest#test_aborted_upload_keeps_the_previous_version_and_leaves_no_temp_file
+- minitest:ServerIntegrationTest#test_concurrent_puts_to_the_same_key_over_http_never_expose_partial_content
+- minitest:ServerIntegrationTest#test_blob_endpoints_over_http
+- minitest:ServerIntegrationTest#test_healthz_over_http_with_flags
+- minitest:ServerIntegrationTest#test_list_blobs_over_http
+- minitest:ServerIntegrationTest#test_delete_blob_over_http
+- minitest:StoreAtomicWriteTest#test_interrupted_body_for_a_new_key_leaves_nothing_on_disk
+- minitest:StoreAtomicWriteTest#test_interrupted_body_leaves_no_temp_file_and_keeps_the_previous_version
+- minitest:StoreAtomicWriteTest#test_put_writes_whole_body_to_a_temp_file_in_the_tmp_dir_and_then_renames_it
+- minitest:StoreAtomicWriteTest#test_temp_file_is_fsynced_while_open_and_before_rename
+- minitest:StoreAtomicWriteTest#test_failed_rename_leaves_no_temp_file_and_keeps_existing_files
+- minitest:StoreAtomicWriteTest#test_readers_see_only_complete_versions_during_concurrent_puts_to_the_same_key
+- minitest:StoreAtomicWriteTest#test_concurrent_puts_to_different_keys_do_not_interfere
+- minitest:StoreAtomicWriteTest#test_remove_stale_tmp_files_reports_how_many_were_removed_and_tolerates_absent_dir
+- minitest:StoreAtomicWriteTest#test_temp_file_is_not_listed_and_not_addressable_while_put_is_in_progress
+- minitest:StoreAtomicWriteTest#test_stale_temp_files_from_a_previous_process_are_removed_on_startup
+- minitest:StoreAtomicWriteTest#test_reader_that_opened_the_old_version_reads_it_completely_after_overwrite
+- minitest:StoreKeyTest#test_symlink_staying_inside_root_is_allowed
+- minitest:StoreKeyTest#test_path_for_rejects_path_that_lexically_escapes_root_even_if_validation_were_bypassed
+- minitest:StoreKeyTest#test_rejects_parent_in_the_middle
+- minitest:StoreKeyTest#test_root_that_is_itself_a_symlink_works_normally
+- minitest:StoreKeyTest#test_rejects_trailing_slash
+- minitest:StoreKeyTest#test_rejects_segments_longer_than_name_max_and_paths_longer_than_path_max
+- minitest:StoreKeyTest#test_rejects_parent_only
+- minitest:StoreKeyTest#test_rejects_parent_at_start
+- minitest:StoreKeyTest#test_rejects_current_dir_segment
+- minitest:StoreKeyTest#test_symlink_file_pointing_outside_root_is_rejected_and_skipped_in_list
+- minitest:StoreKeyTest#test_rejects_parent_at_end
+- minitest:StoreKeyTest#test_rejects_invalid_utf8_including_overlong_dot_encodings
+- minitest:StoreKeyTest#test_symlink_directory_pointing_outside_root_is_rejected_for_every_operation
+- minitest:StoreKeyTest#test_put_over_symlink_file_pointing_outside_root_is_rejected
+- minitest:StoreKeyTest#test_missing_root_is_created_on_first_access_instead_of_failing
+- minitest:StoreKeyTest#test_symlink_loop_is_rejected_not_a_server_error
+- minitest:StoreKeyTest#test_rejects_NUL_then_parent
+- minitest:StoreKeyTest#test_rejects_empty_segment
+- minitest:StoreKeyTest#test_rejects_absolute
+- minitest:StoreKeyTest#test_symlink_to_root_parent_is_judged_by_where_the_resolved_path_lands
+- minitest:StoreKeyTest#test_dangling_symlink_is_not_found_and_put_replaces_the_link_itself
+- minitest:StoreKeyTest#test_rejects_parent_after_valid_dir
+- minitest:StoreKeyTest#test_accepts_keys_that_merely_look_like_traversal_and_keeps_them_inside_root
+- minitest:StoreKeyTest#test_rejects_many_parents
+- minitest:StoreKeyTest#test_validate_key_reports_the_reason
+- minitest:StoreKeyTest#test_validate_key_does_not_normalize_the_key
+- minitest:StoreKeyTest#test_rejects_current_dir_in_the_middle
+- minitest:StoreKeyTest#test_rejects_absolute_path_to_a_real_file_outside_root
+- minitest:StoreKeyTest#test_rejects_empty
+- minitest:StoreKeyTest#test_rejects_double_leading_slash
+- minitest:StoreKeyTest#test_rejects_NUL
+- minitest:StoreTest#test_open_missing_key_next_to_existing_blob_raises_not_found
+- minitest:StoreTest#test_open_missing_key_raises_not_found
+- minitest:StoreTest#test_open_returns_size_and_byte_identical_body
+- minitest:StoreTest#test_put_returns_key_sha256_and_size
+- minitest:StoreTest#test_open_missing_key_in_missing_directory_raises_not_found
+- minitest:StoreTest#test_put_empty_body
+- minitest:StoreTest#test_open_body_close_releases_file
+- minitest:StoreTest#test_put_leaves_no_temp_files_behind
+- minitest:StoreTest#test_put_streams_body_larger_than_chunk_size
+- minitest:StoreTest#test_put_overwrites_existing_blob_and_reports_new_metadata
+- minitest:StoreTest#test_put_creates_intermediate_directories
+- minitest:StoreListTest#test_list_includes_dot_files_and_dot_directories
+- minitest:StoreListTest#test_modified_at_is_file_mtime_in_utc
+- minitest:StoreListTest#test_list_recomputes_digest_when_file_changed_on_disk
+- minitest:StoreListTest#test_list_includes_blobs_written_to_disk_outside_the_api
+- minitest:StoreListTest#test_list_recomputes_digest_after_key_is_deleted_and_recreated_on_disk
+- minitest:StoreListTest#test_list_reuses_digest_computed_by_put
+- minitest:StoreListTest#test_list_includes_keys_with_unicode_and_spaces
+- minitest:StoreListTest#test_list_hashes_file_placed_on_disk_only_once_until_it_changes
+- minitest:StoreListTest#test_sha256_is_lowercase_hex_and_size_is_byte_count_for_large_blob
+- minitest:StoreListTest#test_empty_store_lists_nothing
+- minitest:StoreListTest#test_store_with_only_empty_dirs_and_tmp_dir_lists_nothing
+- minitest:StoreListTest#test_list_returns_metadata_for_every_blob_sorted_by_key
+- minitest:StoreListTest#test_list_reflects_overwrite_and_delete
+- minitest:StoreListTest#test_modified_at_after_put_is_close_to_now
+- minitest:StoreListTest#test_list_skips_entries_that_are_not_regular_files_or_valid_keys
+- minitest:StoreListTest#test_list_is_safe_under_concurrent_puts
+- minitest:StoreDeleteTest#test_delete_key_under_existing_file_raises_not_found
+- minitest:StoreDeleteTest#test_delete_forgets_cached_digest_so_recreated_key_is_rehashed
+- minitest:StoreDeleteTest#test_delete_validates_key
+- minitest:StoreDeleteTest#test_delete_does_not_touch_temp_dir
+- minitest:StoreDeleteTest#test_deleted_blob_is_gone_from_open_and_list
+- minitest:StoreDeleteTest#test_delete_missing_key_next_to_existing_blob_raises_not_found_and_keeps_neighbour
+- minitest:StoreDeleteTest#test_key_can_be_reused_as_a_file_after_deleting_blobs_beneath_it
+- minitest:StoreDeleteTest#test_delete_keeps_directories_that_still_have_content
+- minitest:StoreDeleteTest#test_concurrent_deletes_of_same_key_succeed_exactly_once
+- minitest:StoreDeleteTest#test_delete_removes_file_and_returns_nil
+- minitest:StoreDeleteTest#test_concurrent_deletes_and_puts_in_same_directory_never_fail
+- minitest:StoreDeleteTest#test_put_survives_parent_directory_pruned_by_concurrent_delete
+- minitest:StoreDeleteTest#test_put_gives_up_when_parent_directory_keeps_vanishing
+- minitest:StoreDeleteTest#test_delete_prunes_empty_parent_directories_up_to_root
+- minitest:StoreDeleteTest#test_delete_missing_key_raises_not_found
+- minitest:StoreDeleteTest#test_delete_twice_raises_not_found_second_time
+- minitest:StoreDeleteTest#test_delete_removes_file_placed_on_disk_outside_the_api
+- minitest:StoreDeleteTest#test_delete_key_that_is_a_directory_raises_not_found_and_keeps_contents
+Syncbox::TestSupport#wait_for_healthz:/app/test/test_helper.rb:26
+tests: 387, runtime: 2453.15s, killtime: 1724.61s
+evil:Syncbox::TestSupport#wait_for_healthz:/app/test/test_helper.rb:26:ae3bb
+-----------------------
+@@ -1,16 +1,16 @@
+-def wait_for_healthz(port, pid: nil, timeout: 15)
++def wait_for_healthz(port, pid:, timeout: 15)
+   deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+   loop {
+     begin
+       return Net::HTTP.get_response(URI("http://127.0.0.1:#{port}/healthz"))
+     rescue SystemCallError, Net::ReadTimeout, Net::OpenTimeout
+     end
+     if pid && Process.waitpid(pid, Process::WNOHANG)
+       raise("server process #{pid} exited early with #{$?.inspect}")
+     end
+     if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+       raise("server on port #{port} did not become healthy within #{timeout}s")
+     end
+     sleep(0.05)
+   }
+ end
+Uncovered mutations detected, exiting nonzero!
+-----------------------
+(34 more alive mutation(s), use `mutant session subject Syncbox::TestSupport#wait_for_healthz` to see all details)
+Syncbox::TestSupport::FakeServer#initialize:/app/test/test_helper.rb:153
+tests: 387, runtime: 897.15s, killtime: 773.38s
+evil:Syncbox::TestSupport::FakeServer#initialize:/app/test/test_helper.rb:153:32bee
+-----------------------
+@@ -1,10 +1,10 @@
+ def initialize(routes)
+   @routes = routes
+   @requests = []
+   @hung = []
+-  @socket = TCPServer.new("127.0.0.1", 0)
++  @socket = TCPServer.new(nil, 0)
+   @port = @socket.addr[1]
+   @thread = Thread.new {
+     serve
+   }
+ end
+-----------------------
+(7 more alive mutation(s), use `mutant session subject Syncbox::TestSupport::FakeServer#initialize` to see all details)
+Syncbox::TestSupport::FakeServer#refuse_connections:/app/test/test_helper.rb:168
+tests: 387, runtime: 528.26s, killtime: 526.83s
+evil:Syncbox::TestSupport::FakeServer#refuse_connections:/app/test/test_helper.rb:168:1bc01
+-----------------------
+@@ -1,5 +1,5 @@
+ def refuse_connections
+-  unless @socket.closed?
++  unless nil
+     @socket.close
+   end
+ end
+-----------------------
+(2 more alive mutation(s), use `mutant session subject Syncbox::TestSupport::FakeServer#refuse_connections` to see all details)
+Syncbox::TestSupport::FakeServer.listing:/app/test/test_helper.rb:179
+tests: 387, runtime: 302.37s, killtime: 298.71s
+evil:Syncbox::TestSupport::FakeServer.listing:/app/test/test_helper.rb:179:15ec4
+-----------------------
+@@ -1,5 +1,5 @@
+ def self.listing(*entries)
+   JSON.generate(entries.map { |key, body|
+-    { "key" => key, "size" => body.bytesize, "sha256" => Digest::SHA256.hexdigest(body), "modified_at" => "2026-01-01T00:00:00Z" }
++    { "key" => key, "size" => body.bytesize, "sha256" => Digest::SHA256.hexdigest(body), "" => "2026-01-01T00:00:00Z" }
+   })
+ end
+-----------------------
+(3 more alive mutation(s), use `mutant session subject Syncbox::TestSupport::FakeServer.listing` to see all details)
+Mutant environment:
+Usage:           opensource
+Matcher:         #<Mutant::Matcher::Config subjects: [Syncbox::App#put_blob,Syncbox::Client.reserved_key_reason,Syncbox::Client::Api#connect,Syncbox::Client::Api#describe,Syncbox::Client::Api#initialize,Syncbox::Client::Api#request,Syncbox::Client::Api.describe_error,Syncbox::Client::Api.open,Syncbox::Client::Failures#add,Syncbox::Client::Failures#any?,Syncbox::Client::Failures.display_key,Syncbox::Client::LocalTarget#inside?,Syncbox::Client::LocalTree#scan,Syncbox::Client::Pull#initialize,Syncbox::Client::Push#digest,Syncbox::Client::Push#summary_line,Syncbox::Client::Status#initialize,Syncbox::Client::Status#summary_line,Syncbox::Client::Sync#apply,Syncbox::Client::Sync#decide,Syncbox::Client::Sync#parse_modified_at,Syncbox::Client::Sync#upload,Syncbox::Client::SyncState#initialize,Syncbox::Client::SyncState#keys,Syncbox::Config.parse_port,Syncbox::Store#cached_digest,Syncbox::Store#ensure_parent_dir,Syncbox::Store#flush_to_disk,Syncbox::Store#forget_digest,Syncbox::Store#initialize,Syncbox::Store#remove_stale_tmp_files,Syncbox::Store#resolve_existing_prefix,Syncbox::Store#strictly_inside?,Syncbox::TestSupport#wait_for_healthz,Syncbox::TestSupport::FakeServer#initialize,Syncbox::TestSupport::FakeServer#refuse_connections,Syncbox::TestSupport::FakeServer.listing,Syncbox::TestSupport::ServerProcess#list]>
+Integration:     minitest
+Jobs:            6
+Includes:        []
+Requires:        ["./mutant_boot"]
+Operators:       light
+MutationTimeout: 120
+Selection:       expression
+Subjects:        38
+All-Tests:       387
+Available-Tests: 387
+Selected-Tests:  387
+Tests/Subject:   10.18 avg
+Mutations:       1640
+Results:         1640
+Kills:           1340
+Alive:           300
+Timeouts:        18
+Runtime:         5033.59s
+Killtime:        27879.36s
+Efficiency:      553.87%
+Mutations/s:     0.33
+Coverage:        81.70%

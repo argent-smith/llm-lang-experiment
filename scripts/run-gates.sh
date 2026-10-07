@@ -24,6 +24,23 @@
 # прогонов падали на идентичном входе). tmpfs убирает эту прослойку —
 # фаззер бьёт по обычной Linux-fs, как это было бы на CI. smoke по-прежнему
 # идёт через реальные run-server/run-client — ему нужен полный стенд.
+#
+# Порт сервера гейт берёт не только из SYNCBOX_PORT: спецификация не
+# требует, чтобы compose-файл реализации читал именно эту переменную, и
+# реализация с другими именами поднимается на своём порту (кампания
+# Opus 5.5 × Ruby, тикет 1: сервер слушал 8080, гейт ждал $PORT и писал
+# «сервер не поднялся»). Поэтому после `compose up` гейт пробует $PORT и
+# хост-порты, которые сервис server реально опубликовал.
+#
+# Если `compose up server` сервер так и не дал (кампания Fable 5.1 × Ruby,
+# тикет 1: порт задаётся только аргументом --port, который подставляет
+# run-server, а CMD образа — 8080), гейт повторяет запуск через
+# контрактный интерфейс — run-server --data-dir <tmp> --port $PORT — с тем
+# же override-файлом на месте. Сам по себе run-server не годится: данные
+# легли бы на bind-mount хоста, и на macOS экзотические имена ключей дают
+# Errno::EILSEQ -> 500, которых нет на Linux-fs. Поэтому после запуска
+# гейт проверяет, что /data контейнера — tmpfs (override подхвачен); на
+# macOS без tmpfs гейт завершается ошибкой стенда, а не гоняет фаззер.
 
 set -uo pipefail
 
@@ -76,6 +93,9 @@ with_timeout() {
 cleanup_docker() {
   docker ps -aq --filter "name=syncbox-gate-$PORT" --filter "name=syncbox-$PORT" \
     | xargs -r docker rm -f >/dev/null 2>&1 || true
+  # Имя compose-проекта выбирает реализация (run-server); контейнер,
+  # опубликовавший порт гейта, — наш в любом случае.
+  docker ps -aq --filter "publish=$PORT" | xargs -r docker rm -f >/dev/null 2>&1 || true
 }
 
 # ---------------------------------------------------------------- tests gate
@@ -117,7 +137,10 @@ if [ "$MODE_SMOKE" != "skip" ]; then
       smoke_failed="$(echo "$line" | sed -E 's/.*пройдено, ([0-9]+) провалено.*/\1/')"
       smoke_total="$(echo "$line"  | sed -E 's/.*из ([0-9]+).*/\1/')"
     fi
-    smoke_failed_steps="$(grep -oE '^Провалено: .*' "$OUT_DIR/gate-smoke.log" | sed 's/^Провалено: //' \
+    # `|| true` у grep: при полностью зелёном смоке строк «Провалено:» нет,
+    # grep выходит с 1, под pipefail срабатывал `|| echo '[]'` после уже
+    # напечатанного python'ом [] — и в gates.json уходило "[]\n[]".
+    smoke_failed_steps="$({ grep -oE '^Провалено: .*' "$OUT_DIR/gate-smoke.log" || true; } | sed 's/^Провалено: //' \
       | python3 -c 'import sys,json; s=sys.stdin.read().strip(); print(json.dumps([x for x in s.split() ] if s else []))' || echo '[]')"
     cleanup_docker
   else
@@ -156,15 +179,74 @@ YML
            docker compose up --build server ) >"$srv_log" 2>&1 &
     srv_pid=$!
 
+    # Порт сервера: $PORT (через SYNCBOX_PORT) или любой хост-порт, который
+    # сервис server реально опубликовал (см. шапку).
+    published_ports() {
+      ( cd "$PILOT_DIR" && COMPOSE_PROJECT_NAME="syncbox-gate-$PORT" \
+          docker compose ps --format json server 2>/dev/null ) \
+        | python3 -c '
+import json, sys
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        items = json.loads(line)
+    except ValueError:
+        continue
+    for item in items if isinstance(items, list) else [items]:
+        for p in item.get("Publishers") or []:
+            if p.get("PublishedPort"):
+                print(p["PublishedPort"])
+' 2>/dev/null | sort -u
+    }
     up=0
+    srv_port="$PORT"
     for _ in $(seq 1 200); do
-      curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 && { up=1; break; }
+      for cand in "$PORT" $(published_ports); do
+        if curl -fsS "http://127.0.0.1:$cand/healthz" >/dev/null 2>&1; then
+          up=1; srv_port="$cand"; break
+        fi
+      done
+      [ "$up" -eq 1 ] && break
       sleep 0.3
     done
+    [ "$up" -eq 1 ] && [ "$srv_port" != "$PORT" ] \
+      && echo "run-gates.sh: сервер опубликован на порту $srv_port, а не $PORT — гейт идёт туда" >&2
+
+    # Запасной запуск через run-server (см. шапку).
+    contract_data=""
+    stand_error=""
+    if [ "$up" -ne 1 ] && [ -x "$PILOT_DIR/run-server" ]; then
+      echo "run-gates.sh: compose up не дал сервер — повтор через run-server" >&2
+      kill "$srv_pid" 2>/dev/null || true
+      wait "$srv_pid" 2>/dev/null || true
+      ( cd "$PILOT_DIR" && COMPOSE_PROJECT_NAME="syncbox-gate-$PORT" docker compose down -v >/dev/null 2>&1 ) || true
+      cleanup_docker
+      contract_data="$OUT_DIR/gate-contract-data"
+      rm -rf "$contract_data"
+      mkdir -p "$contract_data"
+      { echo; echo "=== повтор через run-server ==="; } >>"$srv_log"
+      "$PILOT_DIR/run-server" --data-dir "$contract_data" --port "$PORT" >>"$srv_log" 2>&1 &
+      srv_pid=$!
+      srv_port="$PORT"
+      for _ in $(seq 1 300); do
+        curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 && { up=1; break; }
+        sleep 0.3
+      done
+      if [ "$up" -eq 1 ]; then
+        cid="$(docker ps -q --filter "publish=$PORT" | head -1)"
+        tmpfs="$(docker inspect --format '{{json .HostConfig.Tmpfs}}' "$cid" 2>/dev/null || true)"
+        if [[ "$tmpfs" != *'"/data"'* ]] && [ "$(uname -s)" = "Darwin" ]; then
+          up=0
+          stand_error="стенд: сервер поднят через run-server, но /data не на tmpfs (run-server не подхватил override) — на macOS контракт-прогон недетерминирован, гейт не запущен"
+        fi
+      fi
+    fi
 
     if [ "$up" -ne 1 ]; then
       contract_status=error
-      contract_summary="сервер не поднялся за 60с (contract-гейт); хвост server-лога: $(tail -5 "$srv_log" | tr '\n' ' ')"
+      contract_summary="${stand_error:-сервер не поднялся за 60с (contract-гейт); хвост server-лога: $(tail -5 "$srv_log" | tr '\n' ' ')}"
     else
       # 3 прогона, гейт зелёный только если зелёны все три. Даже с tmpfs +
       # --generation-deterministic один язык (Python) флапает ~4/8 на
@@ -180,7 +262,7 @@ YML
       for _cr in 1 2 3; do
         cout="$(with_timeout 240 "$SCHEMATHESIS_BIN" --config-file "$REPO_ROOT/acceptance/schemathesis.toml" \
                   run "$REPO_ROOT/docs/syncbox-openapi.yaml" \
-                  --url "http://127.0.0.1:$PORT" --generation-deterministic \
+                  --url "http://127.0.0.1:$srv_port" --generation-deterministic \
                   --checks not_a_server_error,status_code_conformance,response_schema_conformance 2>&1)"
         crc=$?
         if [ "$crc" -eq 0 ]; then
@@ -211,6 +293,7 @@ YML
     ( cd "$PILOT_DIR" && COMPOSE_PROJECT_NAME="syncbox-gate-$PORT" docker compose down -v >/dev/null 2>&1 ) || true
     rm -f "$OVERRIDE"
     cleanup_docker
+    [ -n "$contract_data" ] && rm -rf "$contract_data"
   fi
 fi
 

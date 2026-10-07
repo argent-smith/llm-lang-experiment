@@ -1,0 +1,1747 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Syncbox: mutation score</title><style>
+:root{color-scheme:light dark;--surface:var(--agterm-background,#fcfcfb);--fg:var(--agterm-foreground,#0b0b0b);--ink2:color-mix(in srgb,var(--fg) 70%,transparent);--muted:color-mix(in srgb,var(--fg) 55%,transparent);
+--line:color-mix(in srgb,var(--fg) 12%,transparent);--base:color-mix(in srgb,var(--fg) 30%,transparent);--panel:color-mix(in srgb,var(--fg) 4%,transparent);
+--s:#2a78d6;--o:#eb6834;--f:#1baf7a;--d1:#86b6ef;--d2:#2a78d6;--add:#006300;--del:#d03b3b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--s:#3987e5;--o:#d95926;--f:#199e70;--d1:#6da7ec;--d2:#3987e5;--add:#0ca30c;--del:#e66767}}
+:root[data-theme="dark"]{--s:#3987e5;--o:#d95926;--f:#199e70;--d1:#6da7ec;--d2:#3987e5;--add:#0ca30c;--del:#e66767}
+body{background:var(--surface);color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0}
+.page{max-width:1180px;margin:0 auto;padding:28px 16px 60px}
+h1{font-size:24px;margin:0 0 4px;line-height:1.25} h2{font-size:17px;margin:38px 0 6px;padding-top:18px;border-top:1px solid var(--line)} h3{font-size:13px;margin:0 0 10px;font-weight:600} h4{font-size:12.5px;margin:14px 0 4px;font-weight:600}
+p{margin:6px 0;max-width:88ch} .sub,.note,.muted{color:var(--muted)} .note{font-size:12px;margin-top:8px} code{font:12px ui-monospace,Menlo,monospace}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:18px 0}
+.tile,.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.tile b{display:block;font-size:26px;line-height:1.15;font-weight:600} .tile span{color:var(--muted);font-size:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:12px;margin:10px 0}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:12px 0;font-size:12px} .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.s{background:var(--s);fill:var(--s)} .o{background:var(--o);fill:var(--o)} .f{background:var(--f);fill:var(--f)}
+svg{width:100%;max-width:1100px;height:auto;display:block} .grid{stroke:var(--line);stroke-width:1} .base{stroke:var(--base);stroke-width:1} .ax{fill:var(--muted);font-size:10px}
+.lbl{fill:var(--ink2);font-size:11.5px} .grp{fill:var(--fg);font-size:11.5px;font-weight:600} .val{fill:var(--fg);font-size:11.5px;font-variant-numeric:tabular-nums}
+.hit{fill:transparent} .mark:hover path,.mark:hover .dot{opacity:.75} .ci{stroke:var(--surface);stroke-width:2;opacity:.9}
+.db{stroke:var(--d1);stroke-width:2;stroke-linecap:round} .d1{fill:var(--d1);stroke:var(--surface);stroke-width:2} .d2{fill:var(--d2);stroke:var(--surface);stroke-width:2}
+.dot{stroke:var(--surface);stroke-width:2} .dot.hol{fill:var(--surface);stroke-width:2} .dot.hol.s{stroke:var(--s)} .dot.hol.o{stroke:var(--o)} .dot.hol.f{stroke:var(--f)}
+.key{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;margin:6px 0} .key i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.tw{overflow-x:auto;margin:10px 0} table{border-collapse:collapse;width:100%;font-size:12.5px} th,td{padding:5px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:500} td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+ul{margin:6px 0;padding-left:20px;max-width:88ch} li{margin:3px 0}
+details{margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:8px 14px} summary{cursor:pointer;font-size:13px}
+pre{font:11.5px/1.4 ui-monospace,Menlo,monospace;background:var(--panel);border-radius:6px;padding:8px 10px;overflow-x:auto;margin:4px 0 0} pre i{font-style:normal;display:block} pre .add{color:var(--add)} pre .del{color:var(--del)}
+</style></head><body><div class="page">
+<h1>Syncbox: mutation score тестов пяти Ruby-реализаций</h1>
+<p class="sub">Сколько искусственно внесённых ошибок в коде замечают штатные тесты реализации. mutant 0.17 на финальных снимках после тикета 11: один прогон Sonnet 5 (кампания автора), два Opus 5.5 и два Fable 5.1. n = 1 на ячейку — наблюдения, не выводы.</p>
+
+<div class="tiles">
+<div class="tile"><b>26.3% – 85.5%</b><span>mutation score: от Ruby 3.3 · Sonnet 5 до Ruby 4.0.7 · Opus 5.5</span></div>
+<div class="tile"><b>10 129</b><span>мутаций прогнано через тесты, каждая — полный прогон набора</span></div>
+<div class="tile"><b>4.9 ч</b><span>суммарное время измерения на 6 воркерах</span></div>
+<div class="tile"><b>1228</b><span>тестов в пяти наборах: 124, 217, 387, 220, 280</span></div>
+</div>
+
+<h2>Score по прогонам</h2>
+<div class="legend"><span><b class="sw s"></b>Sonnet 5 (кампания автора)</span><span><b class="sw o"></b>Opus 5.5</span><span><b class="sw f"></b>Fable 5.1</span></div>
+<div class="card"><svg viewBox="0 0 1100 268" role="img" aria-label="Mutation score по прогонам"><line class="grid" x1="200.0" x2="200.0" y1="14" y2="250"/><text class="ax" x="200.0" y="263" text-anchor="middle">0%</text><line class="grid" x1="402.5" x2="402.5" y1="14" y2="250"/><text class="ax" x="402.5" y="263" text-anchor="middle">25%</text><line class="grid" x1="605.0" x2="605.0" y1="14" y2="250"/><text class="ax" x="605.0" y="263" text-anchor="middle">50%</text><line class="grid" x1="807.5" x2="807.5" y1="14" y2="250"/><text class="ax" x="807.5" y="263" text-anchor="middle">75%</text><line class="grid" x1="1010.0" x2="1010.0" y1="14" y2="250"/><text class="ax" x="1010.0" y="263" text-anchor="middle">100%</text><text class="grp" x="192" y="28" text-anchor="end">Ruby 3.3</text><g class="mark"><title>Ruby 3.3 · Sonnet 5: 26.3% (убито 728 из 2 771; 95% ДИ 24.7%–27.9%)</title><rect class="hit" x="192" y="40" width="908" height="26"/><path class="s" d="M200,44 h208.8 q4,0 4,4 v10 q0,4 -4,4 h-208.8 z"/><line class="ci" x1="399.8" x2="426.3" y1="53.0" y2="53.0"/><text class="lbl" x="192" y="57.0" text-anchor="end">Sonnet 5</text><text class="val" x="420.8" y="57.0">26.3%</text></g><g class="mark"><title>Ruby 3.3.12 · Opus 5.5: 81.9% (убито 1 341 из 1 637; 95% ДИ 80.0%–83.7%)</title><rect class="hit" x="192" y="66" width="908" height="26"/><path class="o" d="M200,70 h659.5 q4,0 4,4 v10 q0,4 -4,4 h-659.5 z"/><line class="ci" x1="847.8" x2="878.0" y1="79.0" y2="79.0"/><text class="lbl" x="192" y="83.0" text-anchor="end">Opus 5.5</text><text class="val" x="871.5" y="83.0">81.9%</text></g><g class="mark"><title>Ruby 3.3.12 · Fable 5.1: 81.7% (убито 1 340 из 1 640; 95% ДИ 79.8%–83.5%)</title><rect class="hit" x="192" y="92" width="908" height="26"/><path class="f" d="M200,96 h657.8 q4,0 4,4 v10 q0,4 -4,4 h-657.8 z"/><line class="ci" x1="846.1" x2="876.4" y1="105.0" y2="105.0"/><text class="lbl" x="192" y="109.0" text-anchor="end">Fable 5.1</text><text class="val" x="869.8" y="109.0">81.7%</text></g><text class="grp" x="192" y="152" text-anchor="end">Ruby 4.0.7</text><g class="mark"><title>Ruby 4.0.7 · Opus 5.5: 85.5% (убито 1 499 из 1 753; 95% ДИ 83.8%–87.1%)</title><rect class="hit" x="192" y="164" width="908" height="26"/><path class="o" d="M200,168 h688.6 q4,0 4,4 v10 q0,4 -4,4 h-688.6 z"/><line class="ci" x1="878.7" x2="905.4" y1="177.0" y2="177.0"/><text class="lbl" x="192" y="181.0" text-anchor="end">Opus 5.5</text><text class="val" x="900.6" y="181.0">85.5%</text></g><g class="mark"><title>Ruby 4.0.7 · Fable 5.1: 76.6% (убито 1 783 из 2 328; 95% ДИ 74.8%–78.3%)</title><rect class="hit" x="192" y="190" width="908" height="26"/><path class="f" d="M200,194 h616.4 q4,0 4,4 v10 q0,4 -4,4 h-616.4 z"/><line class="ci" x1="806.1" x2="833.9" y1="203.0" y2="203.0"/><text class="lbl" x="192" y="207.0" text-anchor="end">Fable 5.1</text><text class="val" x="828.4" y="207.0">76.6%</text></g><line class="base" x1="200" x2="200" y1="14" y2="250"/></svg>
+<p class="note">Длина бара — доля убитых мутаций; светлая засечка внутри — 95% доверительный интервал Вильсона по числу мутаций (условный: мутации одного метода не независимы). Подробности — по наведению и в таблице ниже.</p></div>
+<div class="tw"><table><tr><th>Прогон</th><th>фреймворк</th><th class="n">тестов</th><th class="n">методов</th><th class="n">в выборке</th><th class="n">мутаций</th><th class="n">убито</th><th class="n">выжило</th><th class="n">таймаутов</th><th class="n">score</th><th class="n">95% ДИ</th><th class="n">время</th><th class="n">мутаций/с</th></tr><tr><td><b class="sw s"></b>Ruby 3.3 · Sonnet 5</td><td>rspec</td><td class="n">124</td><td class="n">25</td><td class="n">25 <span class="muted">(100%)</span></td><td class="n">2 771 <span class="muted">из 2 771</span></td><td class="n">728</td><td class="n">2 043</td><td class="n">0</td><td class="n"><b>26.3%</b></td><td class="n muted">24.7%–27.9%</td><td class="n">3 мин</td><td class="n">17.04</td></tr><tr><td><b class="sw o"></b>Ruby 3.3.12 · Opus 5.5</td><td>minitest</td><td class="n">217</td><td class="n">99</td><td class="n">25 <span class="muted">(25%)</span></td><td class="n">1 637 <span class="muted">из 6 725</span></td><td class="n">1 341</td><td class="n">296</td><td class="n">4</td><td class="n"><b>81.9%</b></td><td class="n muted">80.0%–83.7%</td><td class="n">39 мин</td><td class="n">0.70</td></tr><tr><td><b class="sw f"></b>Ruby 3.3.12 · Fable 5.1</td><td>minitest</td><td class="n">387</td><td class="n">152</td><td class="n">38 <span class="muted">(25%)</span></td><td class="n">1 640 <span class="muted">из 9 153</span></td><td class="n">1 340</td><td class="n">300</td><td class="n">18</td><td class="n"><b>81.7%</b></td><td class="n muted">79.8%–83.5%</td><td class="n">84 мин</td><td class="n">0.33</td></tr><tr><td><b class="sw o"></b>Ruby 4.0.7 · Opus 5.5</td><td>minitest</td><td class="n">220</td><td class="n">110</td><td class="n">28 <span class="muted">(25%)</span></td><td class="n">1 753 <span class="muted">из 7 644</span></td><td class="n">1 499</td><td class="n">254</td><td class="n">9</td><td class="n"><b>85.5%</b></td><td class="n muted">83.8%–87.1%</td><td class="n">46 мин</td><td class="n">0.63</td></tr><tr><td><b class="sw f"></b>Ruby 4.0.7 · Fable 5.1</td><td>minitest</td><td class="n">280</td><td class="n">127</td><td class="n">32 <span class="muted">(25%)</span></td><td class="n">2 328 <span class="muted">из 8 476</span></td><td class="n">1 783</td><td class="n">545</td><td class="n">17</td><td class="n"><b>76.6%</b></td><td class="n muted">74.8%–78.3%</td><td class="n">121 мин</td><td class="n">0.32</td></tr></table></div>
+
+<h2>Метод</h2>
+<ul>
+<li><b>Инструмент.</b> <a href="https://github.com/mbj/mutant">mutant</a> 0.17 (<code>--usage opensource</code>), набор операторов <code>light</code>, 6 параллельных воркеров, таймаут 120 с на мутацию — мутация, не уложившаяся в таймаут, у mutant считается убитой (столбец «таймаутов»). Тесты и mutant идут внутри Docker-образа самой реализации под непривилегированным пользователем: тесты на права доступа под root пропускаются или ведут себя иначе.</li>
+<li><b>Субъекты.</b> Все методы в пространстве <code>Syncbox*</code>. У Sonnet — 25 методов (маршруты Sinatra — блоки, не методы, они вне измерения); у Opus и Fable — 99, 152, 110, 127. Для каждой мутации гоняется весь набор тестов (<code>cover "Syncbox*"</code>), не эвристически выбранный файл: имена тестовых классов у агентов не совпадают с именами классов кода.</li>
+<li><b>Выборка.</b> Наборы Opus и Fable поднимают реальный сервер в тестах и идут 10–30 с на прогон, полный набор из 6–9 тысяч мутаций занял бы сутки на реализацию. Поэтому у них случайная выборка 25% методов с фиксированным seed 42, score — по мутациям выбранных методов. У Sonnet (rspec, 0.5 с на прогон) — все методы. Доля ниже 100% указана в столбце «в выборке».</li>
+<li><b>Что не меняется.</b> Код реализации в архиве не правится; в измерительной копии заменён только строковый литерал <code>"\xFF".b</code>, который не принимает парсер mutant (Ruby 3.3 Sonnet 5: 0, Ruby 3.3.12 Opus 5.5: 10, Ruby 3.3.12 Fable 5.1: 1, Ruby 4.0.7 Opus 5.5: 1, Ruby 4.0.7 Fable 5.1: 4 файлов). Тесты не менялись.</li>
+<li><b>Ruby 3.3.12 · Fable 5.1: тестовые помощники в выборке.</b> Вспомогательный код тестов лежит в пространстве <code>Syncbox::TestSupport</code> и попадает под выражение <code>Syncbox*</code>: 5 из 38 субъектов выборки (226 мутаций, выжило 50) — это код, который тесты не проверяют по определению. Без них score = <b>82.3%</b> (в таблице — 81.7%). У остальных прогонов помощники вне <code>Syncbox</code> либо их нет.</li>
+<li><b>Что score не показывает.</b> Число ошибок в самом коде: все пять реализаций прошли одни и те же внешние проверки. Score говорит, насколько тесты привязаны к поведению — то есть заметят ли они следующую поломку. Часть выживших мутаций эквивалентна исходному коду (например, замена <code>env = ENV</code> на обязательный аргумент, если все вызовы передают его явно), поэтому 100% недостижимы и не нужны.</li>
+</ul>
+
+<h2>Воспроизводимость</h2>
+<p>Два независимых измерения на одном снимке и одной выборке: ночной прогон под root (отвергнут — у Opus на Ruby 4 тесты на права доступа под root падали) и дневной под <code>nobody</code>. Разница — таймауты и порядок параллельного выполнения.</p>
+<div class="card"><svg viewBox="0 0 1100 168" role="img" aria-label="Воспроизводимость score"><line class="grid" x1="200.0" x2="200.0" y1="14" y2="150"/><text class="ax" x="200.0" y="163" text-anchor="middle">0%</text><line class="grid" x1="402.5" x2="402.5" y1="14" y2="150"/><text class="ax" x="402.5" y="163" text-anchor="middle">25%</text><line class="grid" x1="605.0" x2="605.0" y1="14" y2="150"/><text class="ax" x="605.0" y="163" text-anchor="middle">50%</text><line class="grid" x1="807.5" x2="807.5" y1="14" y2="150"/><text class="ax" x="807.5" y="163" text-anchor="middle">75%</text><line class="grid" x1="1010.0" x2="1010.0" y1="14" y2="150"/><text class="ax" x="1010.0" y="163" text-anchor="middle">100%</text><g class="mark"><title>Ruby 3.3 · Sonnet 5: ночной прогон (root) 26.8% → повтор (nobody) 26.3%, Δ -0.6 п.п.</title><rect class="hit" x="192" y="24.0" width="908" height="30"/><line class="db" x1="417.5" x2="412.8" y1="39.0" y2="39.0"/><circle class="d1" cx="417.5" cy="39.0" r="5"/><circle class="d2" cx="412.8" cy="39.0" r="5"/><text class="lbl" x="192" y="43.0" text-anchor="end">Ruby 3.3 · Sonnet 5</text><text class="val" x="427.5" y="43.0">-0.6 п.п.</text></g><g class="mark"><title>Ruby 3.3.12 · Opus 5.5: ночной прогон (root) 78.4% → повтор (nobody) 81.9%, Δ +3.5 п.п.</title><rect class="hit" x="192" y="54.0" width="908" height="30"/><line class="db" x1="835.3" x2="863.5" y1="69.0" y2="69.0"/><circle class="d1" cx="835.3" cy="69.0" r="5"/><circle class="d2" cx="863.5" cy="69.0" r="5"/><text class="lbl" x="192" y="73.0" text-anchor="end">Ruby 3.3.12 · Opus 5.5</text><text class="val" x="873.5" y="73.0">+3.5 п.п.</text></g><g class="mark"><title>Ruby 3.3.12 · Fable 5.1: ночной прогон (root) 80.9% → повтор (nobody) 81.7%, Δ +0.8 п.п.</title><rect class="hit" x="192" y="84.0" width="908" height="30"/><line class="db" x1="855.4" x2="861.8" y1="99.0" y2="99.0"/><circle class="d1" cx="855.4" cy="99.0" r="5"/><circle class="d2" cx="861.8" cy="99.0" r="5"/><text class="lbl" x="192" y="103.0" text-anchor="end">Ruby 3.3.12 · Fable 5.1</text><text class="val" x="871.8" y="103.0">+0.8 п.п.</text></g><g class="mark"><title>Ruby 4.0.7 · Fable 5.1: ночной прогон (root) 75.3% → повтор (nobody) 76.6%, Δ +1.2 п.п.</title><rect class="hit" x="192" y="114.0" width="908" height="30"/><line class="db" x1="810.3" x2="820.4" y1="129.0" y2="129.0"/><circle class="d1" cx="810.3" cy="129.0" r="5"/><circle class="d2" cx="820.4" cy="129.0" r="5"/><text class="lbl" x="192" y="133.0" text-anchor="end">Ruby 4.0.7 · Fable 5.1</text><text class="val" x="830.4" y="133.0">+1.2 п.п.</text></g><line class="base" x1="200" x2="200" y1="14" y2="150"/></svg><div class="key"><span><i style="background:var(--d1)"></i>ночной прогон, root</span><span><i style="background:var(--d2)"></i>повтор, nobody</span></div></div>
+<div class="tw"><table><tr><th>Прогон</th><th class="n">root</th><th class="n">nobody</th><th class="n">Δ п.п.</th><th class="n">выжило</th></tr><tr><td><b class="sw s"></b>Ruby 3.3 · Sonnet 5</td><td class="n">26.8%</td><td class="n">26.3%</td><td class="n">-0.6</td><td class="n">2027 → 2043</td></tr><tr><td><b class="sw o"></b>Ruby 3.3.12 · Opus 5.5</td><td class="n">78.4%</td><td class="n">81.9%</td><td class="n">+3.5</td><td class="n">353 → 296</td></tr><tr><td><b class="sw f"></b>Ruby 3.3.12 · Fable 5.1</td><td class="n">80.9%</td><td class="n">81.7%</td><td class="n">+0.8</td><td class="n">313 → 300</td></tr><tr><td><b class="sw f"></b>Ruby 4.0.7 · Fable 5.1</td><td class="n">75.3%</td><td class="n">76.6%</td><td class="n">+1.2</td><td class="n">574 → 545</td></tr></table></div>
+
+<h2>Где выживают мутанты</h2>
+<p>Score каждого метода из выборки: доля убитых мутаций в нём. Один метод — одна точка; полые точки — тестовые помощники.</p>
+<div class="legend"><span><b class="sw s"></b>Sonnet 5 (кампания автора)</span><span><b class="sw o"></b>Opus 5.5</span><span><b class="sw f"></b>Fable 5.1</span></div>
+<div class="card"><svg viewBox="0 0 1100 218" role="img" aria-label="Score по субъектам"><line class="grid" x1="200.0" x2="200.0" y1="14" y2="200"/><text class="ax" x="200.0" y="213" text-anchor="middle">0%</text><line class="grid" x1="415.0" x2="415.0" y1="14" y2="200"/><text class="ax" x="415.0" y="213" text-anchor="middle">25%</text><line class="grid" x1="630.0" x2="630.0" y1="14" y2="200"/><text class="ax" x="630.0" y="213" text-anchor="middle">50%</text><line class="grid" x1="845.0" x2="845.0" y1="14" y2="200"/><text class="ax" x="845.0" y="213" text-anchor="middle">75%</text><line class="grid" x1="1060.0" x2="1060.0" y1="14" y2="200"/><text class="ax" x="1060.0" y="213" text-anchor="middle">100%</text><text class="lbl" x="192" y="45.0" text-anchor="end">Ruby 3.3 · Sonnet 5</text><g class="mark"><title>Syncbox::Status#run: 0.5% — выжило 406 из 408</title><circle class="hit" cx="204.2" cy="35.5" r="12"/><circle class="dot s" cx="204.2" cy="35.5" r="4.5"/></g><g class="mark"><title>Syncbox::Push#run: 1.1% — выжило 260 из 263</title><circle class="hit" cx="209.8" cy="46.5" r="12"/><circle class="dot s" cx="209.8" cy="46.5" r="4.5"/></g><g class="mark"><title>Syncbox::Pull#run: 1.1% — выжило 258 из 261</title><circle class="hit" cx="209.9" cy="45.4" r="12"/><circle class="dot s" cx="209.9" cy="45.4" r="4.5"/></g><g class="mark"><title>Syncbox::Manifest#save: 1.7% — выжило 58 из 59</title><circle class="hit" cx="214.6" cy="44.3" r="12"/><circle class="dot s" cx="214.6" cy="44.3" r="4.5"/></g><g class="mark"><title>Syncbox::Sync#run: 1.7% — выжило 520 из 529</title><circle class="hit" cx="214.6" cy="43.2" r="12"/><circle class="dot s" cx="214.6" cy="43.2" r="4.5"/></g><g class="mark"><title>Syncbox::FailureReport#print: 1.9% — выжило 53 из 54</title><circle class="hit" cx="215.9" cy="42.1" r="12"/><circle class="dot s" cx="215.9" cy="42.1" r="4.5"/></g><g class="mark"><title>Syncbox::Push#local_files: 2.7% — выжило 71 из 73</title><circle class="hit" cx="223.6" cy="41.0" r="12"/><circle class="dot s" cx="223.6" cy="41.0" r="4.5"/></g><g class="mark"><title>Syncbox::Sync#classify: 2.9% — выжило 135 из 139</title><circle class="hit" cx="224.7" cy="39.9" r="12"/><circle class="dot s" cx="224.7" cy="39.9" r="4.5"/></g><g class="mark"><title>Syncbox::Manifest#reserved?: 4.3% — выжило 22 из 23</title><circle class="hit" cx="237.4" cy="38.8" r="12"/><circle class="dot s" cx="237.4" cy="38.8" r="4.5"/></g><g class="mark"><title>Syncbox::Manifest#load: 6.2% — выжило 30 из 32</title><circle class="hit" cx="253.8" cy="37.7" r="12"/><circle class="dot s" cx="253.8" cy="37.7" r="4.5"/></g><g class="mark"><title>Syncbox::Manifest#state_path: 6.7% — выжило 14 из 15</title><circle class="hit" cx="257.3" cy="36.6" r="12"/><circle class="dot s" cx="257.3" cy="36.6" r="4.5"/></g><g class="mark"><title>Syncbox::ServerClient#perform: 52.4% — выжило 49 из 103</title><circle class="hit" cx="650.9" cy="35.5" r="12"/><circle class="dot s" cx="650.9" cy="35.5" r="4.5"/></g><g class="mark"><title>Syncbox::ServerClient#initialize: 56.1% — выжило 18 из 41</title><circle class="hit" cx="682.4" cy="46.5" r="12"/><circle class="dot s" cx="682.4" cy="46.5" r="4.5"/></g><g class="mark"><title>Syncbox::ServerClient#uri_for: 67.7% — выжило 10 из 31</title><circle class="hit" cx="782.6" cy="45.4" r="12"/><circle class="dot s" cx="782.6" cy="45.4" r="4.5"/></g><g class="mark"><title>Syncbox::ClientConfig.parse: 72.7% — выжило 44 из 161</title><circle class="hit" cx="825.0" cy="44.3" r="12"/><circle class="dot s" cx="825.0" cy="44.3" r="4.5"/></g><g class="mark"><title>Syncbox::App#resolve_blob_path: 74.2% — выжило 17 из 66</title><circle class="hit" cx="838.5" cy="43.2" r="12"/><circle class="dot s" cx="838.5" cy="43.2" r="4.5"/></g><g class="mark"><title>Syncbox::App#blob_key_valid?: 75.2% — выжило 28 из 113</title><circle class="hit" cx="846.9" cy="42.1" r="12"/><circle class="dot s" cx="846.9" cy="42.1" r="4.5"/></g><g class="mark"><title>Syncbox::ServerClient#escape_segment: 81.8% — выжило 8 из 44</title><circle class="hit" cx="903.6" cy="41.0" r="12"/><circle class="dot s" cx="903.6" cy="41.0" r="4.5"/></g><g class="mark"><title>Syncbox::ServerClient#get_blob: 85.2% — выжило 8 из 54</title><circle class="hit" cx="932.6" cy="39.9" r="12"/><circle class="dot s" cx="932.6" cy="39.9" r="4.5"/></g><g class="mark"><title>Syncbox::ServerClient#put_blob: 87.1% — выжило 9 из 70</title><circle class="hit" cx="949.4" cy="38.8" r="12"/><circle class="dot s" cx="949.4" cy="38.8" r="4.5"/></g><g class="mark"><title>Syncbox::Config.parse: 87.6% — выжило 16 из 129</title><circle class="hit" cx="953.3" cy="37.7" r="12"/><circle class="dot s" cx="953.3" cy="37.7" r="4.5"/></g><g class="mark"><title>Syncbox::ServerClient#escape_key: 88.2% — выжило 4 из 34</title><circle class="hit" cx="958.8" cy="36.6" r="12"/><circle class="dot s" cx="958.8" cy="36.6" r="4.5"/></g><g class="mark"><title>Syncbox::ServerClient#list_blobs: 90.2% — выжило 5 из 51</title><circle class="hit" cx="975.7" cy="35.5" r="12"/><circle class="dot s" cx="975.7" cy="35.5" r="4.5"/></g><g class="mark"><title>Syncbox::ClientConfig#initialize: 100.0% — выжило 0 из 10</title><circle class="hit" cx="1060.0" cy="46.5" r="12"/><circle class="dot s" cx="1060.0" cy="46.5" r="4.5"/></g><g class="mark"><title>Syncbox::Config#initialize: 100.0% — выжило 0 из 8</title><circle class="hit" cx="1060.0" cy="45.4" r="12"/><circle class="dot s" cx="1060.0" cy="45.4" r="4.5"/></g><text class="lbl" x="192" y="79.0" text-anchor="end">Ruby 3.3.12 · Opus 5.5</text><g class="mark"><title>Syncbox::Server::Store#staging_path: 8.3% — выжило 22 из 24</title><circle class="hit" cx="271.7" cy="69.5" r="12"/><circle class="dot o" cx="271.7" cy="69.5" r="4.5"/></g><g class="mark"><title>Syncbox::Server::Store#blob_path: 29.5% — выжило 31 из 44</title><circle class="hit" cx="454.1" cy="80.5" r="12"/><circle class="dot o" cx="454.1" cy="80.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Remote::BlockError#initialize: 46.2% — выжило 7 из 13</title><circle class="hit" cx="596.9" cy="79.4" r="12"/><circle class="dot o" cx="596.9" cy="79.4" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App::FileBody#close: 57.1% — выжило 3 из 7</title><circle class="hit" cx="691.4" cy="78.3" r="12"/><circle class="dot o" cx="691.4" cy="78.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState#read: 63.6% — выжило 43 из 118</title><circle class="hit" cx="746.6" cy="77.2" r="12"/><circle class="dot o" cx="746.6" cy="77.2" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Remote#network_failure: 65.5% — выжило 29 из 84</title><circle class="hit" cx="763.1" cy="76.1" r="12"/><circle class="dot o" cx="763.1" cy="76.1" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#comparable_times: 70.4% — выжило 29 из 98</title><circle class="hit" cx="805.5" cy="75.0" r="12"/><circle class="dot o" cx="805.5" cy="75.0" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Remote#request: 73.5% — выжило 13 из 49</title><circle class="hit" cx="831.8" cy="73.9" r="12"/><circle class="dot o" cx="831.8" cy="73.9" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalDir#initialize: 78.6% — выжило 3 из 14</title><circle class="hit" cx="875.7" cy="72.8" r="12"/><circle class="dot o" cx="875.7" cy="72.8" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalDir#reading: 80.0% — выжило 6 из 30</title><circle class="hit" cx="888.0" cy="71.7" r="12"/><circle class="dot o" cx="888.0" cy="71.7" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalDir#write: 80.0% — выжило 41 из 205</title><circle class="hit" cx="888.0" cy="70.6" r="12"/><circle class="dot o" cx="888.0" cy="70.6" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#decode_key: 81.8% — выжило 4 из 22</title><circle class="hit" cx="903.6" cy="69.5" r="12"/><circle class="dot o" cx="903.6" cy="69.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalDir#children: 82.9% — выжило 7 из 41</title><circle class="hit" cx="913.2" cy="80.5" r="12"/><circle class="dot o" cx="913.2" cy="80.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Remote#list: 86.3% — выжило 18 из 131</title><circle class="hit" cx="941.8" cy="79.4" r="12"/><circle class="dot o" cx="941.8" cy="79.4" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState#keys: 87.5% — выжило 1 из 8</title><circle class="hit" cx="952.5" cy="78.3" r="12"/><circle class="dot o" cx="952.5" cy="78.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Remote.escape_key: 88.9% — выжило 4 из 36</title><circle class="hit" cx="964.4" cy="77.2" r="12"/><circle class="dot o" cx="964.4" cy="77.2" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#get_blob: 90.4% — выжило 8 из 83</title><circle class="hit" cx="977.1" cy="76.1" r="12"/><circle class="dot o" cx="977.1" cy="76.1" r="4.5"/></g><g class="mark"><title>Syncbox::Client::CLI.run: 94.1% — выжило 12 из 204</title><circle class="hit" cx="1009.4" cy="75.0" r="12"/><circle class="dot o" cx="1009.4" cy="75.0" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#method_not_allowed: 94.7% — выжило 1 из 19</title><circle class="hit" cx="1014.7" cy="73.9" r="12"/><circle class="dot o" cx="1014.7" cy="73.9" r="4.5"/></g><g class="mark"><title>Syncbox::Server::Store#each_entry: 94.9% — выжило 4 из 78</title><circle class="hit" cx="1015.9" cy="72.8" r="12"/><circle class="dot o" cx="1015.9" cy="72.8" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Pull#run: 96.4% — выжило 6 из 165</title><circle class="hit" cx="1028.7" cy="71.7" r="12"/><circle class="dot o" cx="1028.7" cy="71.7" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Status#report: 96.9% — выжило 3 из 96</title><circle class="hit" cx="1033.1" cy="70.6" r="12"/><circle class="dot o" cx="1033.1" cy="70.6" r="4.5"/></g><g class="mark"><title>Syncbox::Server::Store#prune_empty_dirs: 97.1% — выжило 1 из 34</title><circle class="hit" cx="1034.7" cy="69.5" r="12"/><circle class="dot o" cx="1034.7" cy="69.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures#initialize: 100.0% — выжило 0 из 5</title><circle class="hit" cx="1060.0" cy="80.5" r="12"/><circle class="dot o" cx="1060.0" cy="80.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalDir.sha256: 100.0% — выжило 0 из 29</title><circle class="hit" cx="1060.0" cy="79.4" r="12"/><circle class="dot o" cx="1060.0" cy="79.4" r="4.5"/></g><text class="lbl" x="192" y="113.0" text-anchor="end">Ruby 3.3.12 · Fable 5.1</text><g class="mark"><title>Syncbox::Client::LocalTree#scan: 7.1% — выжило 26 из 28</title><circle class="hit" cx="261.4" cy="103.5" r="12"/><circle class="dot f" cx="261.4" cy="103.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalTarget#inside?: 9.7% — выжило 28 из 31</title><circle class="hit" cx="283.2" cy="114.5" r="12"/><circle class="dot f" cx="283.2" cy="114.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState#keys: 37.5% — выжило 5 из 8</title><circle class="hit" cx="522.5" cy="113.4" r="12"/><circle class="dot f" cx="522.5" cy="113.4" r="4.5"/></g><g class="mark"><title>Syncbox::Store#flush_to_disk: 44.4% — выжило 5 из 9</title><circle class="hit" cx="582.2" cy="112.3" r="12"/><circle class="dot f" cx="582.2" cy="112.3" r="4.5"/></g><g class="mark"><title>Syncbox::Store#forget_digest: 50.0% — выжило 9 из 18</title><circle class="hit" cx="630.0" cy="111.2" r="12"/><circle class="dot f" cx="630.0" cy="111.2" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures.display_key: 61.2% — выжило 19 из 49</title><circle class="hit" cx="726.5" cy="110.1" r="12"/><circle class="dot f" cx="726.5" cy="110.1" r="4.5"/></g><g class="mark"><title>Syncbox::Store#strictly_inside?: 61.3% — выжило 12 из 31</title><circle class="hit" cx="727.1" cy="109.0" r="12"/><circle class="dot f" cx="727.1" cy="109.0" r="4.5"/></g><g class="mark"><title>Syncbox::Store#resolve_existing_prefix: 64.3% — выжило 20 из 56</title><circle class="hit" cx="752.9" cy="107.9" r="12"/><circle class="dot f" cx="752.9" cy="107.9" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api.describe_error: 66.2% — выжило 23 из 68</title><circle class="hit" cx="769.1" cy="106.8" r="12"/><circle class="dot f" cx="769.1" cy="106.8" r="4.5"/></g><g class="mark"><title>Syncbox::TestSupport#wait_for_healthz: 67.3% — выжило 35 из 107 (тестовый помощник)</title><circle class="hit" cx="778.7" cy="105.7" r="12"/><circle class="dot f hol" cx="778.7" cy="105.7" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api#connect: 69.0% — выжило 9 из 29</title><circle class="hit" cx="793.1" cy="104.6" r="12"/><circle class="dot f" cx="793.1" cy="104.6" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api.open: 71.4% — выжило 6 из 21</title><circle class="hit" cx="814.3" cy="103.5" r="12"/><circle class="dot f" cx="814.3" cy="103.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Pull#initialize: 71.4% — выжило 4 из 14</title><circle class="hit" cx="814.3" cy="114.5" r="12"/><circle class="dot f" cx="814.3" cy="114.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Status#initialize: 71.4% — выжило 4 из 14</title><circle class="hit" cx="814.3" cy="113.4" r="12"/><circle class="dot f" cx="814.3" cy="113.4" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api#initialize: 78.1% — выжило 21 из 96</title><circle class="hit" cx="871.9" cy="112.3" r="12"/><circle class="dot f" cx="871.9" cy="112.3" r="4.5"/></g><g class="mark"><title>Syncbox::TestSupport::FakeServer#refuse_connections: 80.0% — выжило 3 из 15 (тестовый помощник)</title><circle class="hit" cx="888.0" cy="111.2" r="12"/><circle class="dot f hol" cx="888.0" cy="111.2" r="4.5"/></g><g class="mark"><title>Syncbox::TestSupport::FakeServer#initialize: 83.0% — выжило 8 из 47 (тестовый помощник)</title><circle class="hit" cx="913.6" cy="110.1" r="12"/><circle class="dot f hol" cx="913.6" cy="110.1" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api#describe: 83.5% — выжило 15 из 91</title><circle class="hit" cx="918.2" cy="109.0" r="12"/><circle class="dot f" cx="918.2" cy="109.0" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#upload: 89.5% — выжило 4 из 38</title><circle class="hit" cx="969.5" cy="107.9" r="12"/><circle class="dot f" cx="969.5" cy="107.9" r="4.5"/></g><g class="mark"><title>Syncbox::Config.parse_port: 89.7% — выжило 8 из 78</title><circle class="hit" cx="971.8" cy="106.8" r="12"/><circle class="dot f" cx="971.8" cy="106.8" r="4.5"/></g><g class="mark"><title>Syncbox::TestSupport::FakeServer.listing: 89.7% — выжило 4 из 39 (тестовый помощник)</title><circle class="hit" cx="971.8" cy="105.7" r="12"/><circle class="dot f hol" cx="971.8" cy="105.7" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState#initialize: 91.7% — выжило 2 из 24</title><circle class="hit" cx="988.3" cy="104.6" r="12"/><circle class="dot f" cx="988.3" cy="104.6" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#decide: 91.9% — выжило 12 из 148</title><circle class="hit" cx="990.3" cy="103.5" r="12"/><circle class="dot f" cx="990.3" cy="103.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#parse_modified_at: 92.1% — выжило 7 из 89</title><circle class="hit" cx="992.4" cy="114.5" r="12"/><circle class="dot f" cx="992.4" cy="114.5" r="4.5"/></g><g class="mark"><title>Syncbox::Store#remove_stale_tmp_files: 92.6% — выжило 5 из 68</title><circle class="hit" cx="996.8" cy="113.4" r="12"/><circle class="dot f" cx="996.8" cy="113.4" r="4.5"/></g><g class="mark"><title>Syncbox::Store#initialize: 94.7% — выжило 1 из 19</title><circle class="hit" cx="1014.7" cy="112.3" r="12"/><circle class="dot f" cx="1014.7" cy="112.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Status#summary_line: 95.0% — выжило 2 из 40</title><circle class="hit" cx="1017.0" cy="111.2" r="12"/><circle class="dot f" cx="1017.0" cy="111.2" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures#add: 96.9% — выжило 1 из 32</title><circle class="hit" cx="1033.1" cy="110.1" r="12"/><circle class="dot f" cx="1033.1" cy="110.1" r="4.5"/></g><g class="mark"><title>Syncbox::Store#cached_digest: 97.1% — выжило 1 из 34</title><circle class="hit" cx="1034.7" cy="109.0" r="12"/><circle class="dot f" cx="1034.7" cy="109.0" r="4.5"/></g><g class="mark"><title>Syncbox::App#put_blob: 100.0% — выжило 0 из 37</title><circle class="hit" cx="1060.0" cy="107.9" r="12"/><circle class="dot f" cx="1060.0" cy="107.9" r="4.5"/></g><g class="mark"><title>Syncbox::Client.reserved_key_reason: 100.0% — выжило 0 из 6</title><circle class="hit" cx="1060.0" cy="106.8" r="12"/><circle class="dot f" cx="1060.0" cy="106.8" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api#request: 100.0% — выжило 0 из 42</title><circle class="hit" cx="1060.0" cy="105.7" r="12"/><circle class="dot f" cx="1060.0" cy="105.7" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures#any?: 100.0% — выжило 0 из 11</title><circle class="hit" cx="1060.0" cy="104.6" r="12"/><circle class="dot f" cx="1060.0" cy="104.6" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Push#digest: 100.0% — выжило 0 из 43</title><circle class="hit" cx="1060.0" cy="103.5" r="12"/><circle class="dot f" cx="1060.0" cy="103.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Push#summary_line: 100.0% — выжило 0 из 29</title><circle class="hit" cx="1060.0" cy="114.5" r="12"/><circle class="dot f" cx="1060.0" cy="114.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#apply: 100.0% — выжило 0 из 98</title><circle class="hit" cx="1060.0" cy="113.4" r="12"/><circle class="dot f" cx="1060.0" cy="113.4" r="4.5"/></g><g class="mark"><title>Syncbox::Store#ensure_parent_dir: 100.0% — выжило 0 из 15</title><circle class="hit" cx="1060.0" cy="112.3" r="12"/><circle class="dot f" cx="1060.0" cy="112.3" r="4.5"/></g><g class="mark"><title>Syncbox::TestSupport::ServerProcess#list: 100.0% — выжило 0 из 18 (тестовый помощник)</title><circle class="hit" cx="1060.0" cy="111.2" r="12"/><circle class="dot f hol" cx="1060.0" cy="111.2" r="4.5"/></g><text class="lbl" x="192" y="147.0" text-anchor="end">Ruby 4.0.7 · Opus 5.5</text><g class="mark"><title>Syncbox::Client::Remote#describe: 65.3% — выжило 26 из 75</title><circle class="hit" cx="761.9" cy="137.5" r="12"/><circle class="dot o" cx="761.9" cy="137.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures#include?: 66.7% — выжило 12 из 36</title><circle class="hit" cx="773.3" cy="148.5" r="12"/><circle class="dot o" cx="773.3" cy="148.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Pull#make_parents: 68.9% — выжило 28 из 90</title><circle class="hit" cx="792.4" cy="147.4" r="12"/><circle class="dot o" cx="792.4" cy="147.4" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#text: 70.6% — выжило 5 из 17</title><circle class="hit" cx="807.1" cy="146.3" r="12"/><circle class="dot o" cx="807.1" cy="146.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#transfer: 70.8% — выжило 35 из 120</title><circle class="hit" cx="809.2" cy="145.2" r="12"/><circle class="dot o" cx="809.2" cy="145.2" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState#update: 72.5% — выжило 41 из 149</title><circle class="hit" cx="823.4" cy="144.1" r="12"/><circle class="dot o" cx="823.4" cy="144.1" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState.parse: 82.5% — выжило 24 из 137</title><circle class="hit" cx="909.3" cy="143.0" r="12"/><circle class="dot o" cx="909.3" cy="143.0" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Remote#parse_list: 83.6% — выжило 19 из 116</title><circle class="hit" cx="919.1" cy="141.9" r="12"/><circle class="dot o" cx="919.1" cy="141.9" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Remote#initialize: 84.9% — выжило 14 из 93</title><circle class="hit" cx="930.5" cy="140.8" r="12"/><circle class="dot o" cx="930.5" cy="140.8" r="4.5"/></g><g class="mark"><title>Syncbox::Server::Storage#put: 86.7% — выжило 17 из 128</title><circle class="hit" cx="945.8" cy="139.7" r="12"/><circle class="dot o" cx="945.8" cy="139.7" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#initialize: 88.2% — выжило 2 из 17</title><circle class="hit" cx="958.8" cy="138.6" r="12"/><circle class="dot o" cx="958.8" cy="138.6" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Config#initialize: 90.2% — выжило 6 из 61</title><circle class="hit" cx="975.4" cy="137.5" r="12"/><circle class="dot o" cx="975.4" cy="137.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Status#same?: 91.2% — выжило 3 из 34</title><circle class="hit" cx="984.1" cy="148.5" r="12"/><circle class="dot o" cx="984.1" cy="148.5" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#delete_blob: 91.6% — выжило 7 из 83</title><circle class="hit" cx="987.5" cy="147.4" r="12"/><circle class="dot o" cx="987.5" cy="147.4" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures#initialize: 92.3% — выжило 1 из 13</title><circle class="hit" cx="993.8" cy="146.3" r="12"/><circle class="dot o" cx="993.8" cy="146.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Push#up_to_date?: 92.3% — выжило 3 из 39</title><circle class="hit" cx="993.8" cy="145.2" r="12"/><circle class="dot o" cx="993.8" cy="145.2" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#healthz: 94.1% — выжило 3 из 51</title><circle class="hit" cx="1009.4" cy="144.1" r="12"/><circle class="dot o" cx="1009.4" cy="144.1" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#server_time: 95.1% — выжило 3 из 61</title><circle class="hit" cx="1017.7" cy="143.0" r="12"/><circle class="dot o" cx="1017.7" cy="143.0" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#json: 95.5% — выжило 1 из 22</title><circle class="hit" cx="1020.9" cy="141.9" r="12"/><circle class="dot o" cx="1020.9" cy="141.9" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures#summary: 98.0% — выжило 1 из 51</title><circle class="hit" cx="1043.1" cy="140.8" r="12"/><circle class="dot o" cx="1043.1" cy="140.8" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#list_blobs: 98.1% — выжило 1 из 52</title><circle class="hit" cx="1043.5" cy="139.7" r="12"/><circle class="dot o" cx="1043.5" cy="139.7" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Pull#run: 98.7% — выжило 2 из 151</title><circle class="hit" cx="1048.6" cy="138.6" r="12"/><circle class="dot o" cx="1048.6" cy="138.6" r="4.5"/></g><g class="mark"><title>Syncbox::Client.reserved_key?: 100.0% — выжило 0 из 23</title><circle class="hit" cx="1060.0" cy="137.5" r="12"/><circle class="dot o" cx="1060.0" cy="137.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalTree#guard: 100.0% — выжило 0 из 26</title><circle class="hit" cx="1060.0" cy="148.5" r="12"/><circle class="dot o" cx="1060.0" cy="148.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Pull#initialize: 100.0% — выжило 0 из 12</title><circle class="hit" cx="1060.0" cy="147.4" r="12"/><circle class="dot o" cx="1060.0" cy="147.4" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Pull.check_keys: 100.0% — выжило 0 из 40</title><circle class="hit" cx="1060.0" cy="146.3" r="12"/><circle class="dot o" cx="1060.0" cy="146.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState#initialize: 100.0% — выжило 0 из 8</title><circle class="hit" cx="1060.0" cy="145.2" r="12"/><circle class="dot o" cx="1060.0" cy="145.2" r="4.5"/></g><g class="mark"><title>Syncbox::Server::Storage#blob_path: 100.0% — выжило 0 из 48</title><circle class="hit" cx="1060.0" cy="144.1" r="12"/><circle class="dot o" cx="1060.0" cy="144.1" r="4.5"/></g><text class="lbl" x="192" y="181.0" text-anchor="end">Ruby 4.0.7 · Fable 5.1</text><g class="mark"><title>Syncbox::Server::Runner#run: 1.2% — выжило 82 из 83</title><circle class="hit" cx="210.4" cy="171.5" r="12"/><circle class="dot f" cx="210.4" cy="171.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client.run: 3.6% — выжило 27 из 28</title><circle class="hit" cx="230.7" cy="182.5" r="12"/><circle class="dot f" cx="230.7" cy="182.5" r="4.5"/></g><g class="mark"><title>Syncbox::Server::Config.usage: 5.9% — выжило 16 из 17</title><circle class="hit" cx="250.6" cy="181.4" r="12"/><circle class="dot f" cx="250.6" cy="181.4" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api#describe: 44.3% — выжило 59 из 106</title><circle class="hit" cx="581.3" cy="180.3" r="12"/><circle class="dot f" cx="581.3" cy="180.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Transfer#discard: 54.2% — выжило 11 из 24</title><circle class="hit" cx="665.8" cy="179.2" r="12"/><circle class="dot f" cx="665.8" cy="179.2" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Options.build_parser: 55.4% — выжило 70 из 157</title><circle class="hit" cx="676.6" cy="178.1" r="12"/><circle class="dot f" cx="676.6" cy="178.1" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api#parse_put: 57.6% — выжило 59 из 139</title><circle class="hit" cx="695.0" cy="177.0" r="12"/><circle class="dot f" cx="695.0" cy="177.0" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api#parse_json: 64.3% — выжило 15 из 42</title><circle class="hit" cx="752.9" cy="175.9" r="12"/><circle class="dot f" cx="752.9" cy="175.9" r="4.5"/></g><g class="mark"><title>Syncbox::Server::BlobStore#resolve_on_disk: 65.6% — выжило 32 из 93</title><circle class="hit" cx="764.1" cy="174.8" r="12"/><circle class="dot f" cx="764.1" cy="174.8" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api#parse_list: 74.7% — выжило 46 из 182</title><circle class="hit" cx="842.6" cy="173.7" r="12"/><circle class="dot f" cx="842.6" cy="173.7" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#method_not_allowed: 77.3% — выжило 5 из 22</title><circle class="hit" cx="864.5" cy="172.6" r="12"/><circle class="dot f" cx="864.5" cy="172.6" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Options.parse_server: 82.1% — выжило 24 из 134</title><circle class="hit" cx="906.0" cy="171.5" r="12"/><circle class="dot f" cx="906.0" cy="171.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalTree#verify_ancestors: 83.6% — выжило 20 из 122</title><circle class="hit" cx="919.0" cy="182.5" r="12"/><circle class="dot f" cx="919.0" cy="182.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Transfer#download: 86.5% — выжило 18 из 133</title><circle class="hit" cx="943.6" cy="181.4" r="12"/><circle class="dot f" cx="943.6" cy="181.4" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState.load: 86.9% — выжило 16 из 122</title><circle class="hit" cx="947.2" cy="180.3" r="12"/><circle class="dot f" cx="947.2" cy="180.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api::HttpError#initialize: 91.2% — выжило 3 из 34</title><circle class="hit" cx="984.1" cy="179.2" r="12"/><circle class="dot f" cx="984.1" cy="179.2" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalTree#relative: 91.7% — выжило 2 из 24</title><circle class="hit" cx="988.3" cy="178.1" r="12"/><circle class="dot f" cx="988.3" cy="178.1" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#list_blobs: 92.1% — выжило 3 из 38</title><circle class="hit" cx="992.1" cy="177.0" r="12"/><circle class="dot f" cx="992.1" cy="177.0" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Options.parse: 92.4% — выжило 15 из 197</title><circle class="hit" cx="994.5" cy="175.9" r="12"/><circle class="dot f" cx="994.5" cy="175.9" r="4.5"/></g><g class="mark"><title>Syncbox::Server::BlobStore#prepare: 94.2% — выжило 3 из 52</title><circle class="hit" cx="1010.4" cy="174.8" r="12"/><circle class="dot f" cx="1010.4" cy="174.8" r="4.5"/></g><g class="mark"><title>Syncbox::Client::LocalTree#file_entry: 94.7% — выжило 6 из 113</title><circle class="hit" cx="1014.3" cy="173.7" r="12"/><circle class="dot f" cx="1014.3" cy="173.7" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Status#call: 95.7% — выжило 7 из 162</title><circle class="hit" cx="1022.8" cy="172.6" r="12"/><circle class="dot f" cx="1022.8" cy="172.6" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures#report: 96.5% — выжило 3 из 86</title><circle class="hit" cx="1030.0" cy="171.5" r="12"/><circle class="dot f" cx="1030.0" cy="171.5" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#json: 96.8% — выжило 1 из 31</title><circle class="hit" cx="1032.3" cy="182.5" r="12"/><circle class="dot f" cx="1032.3" cy="182.5" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState#record: 97.2% — выжило 1 из 36</title><circle class="hit" cx="1036.1" cy="181.4" r="12"/><circle class="dot f" cx="1036.1" cy="181.4" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#download: 97.4% — выжило 1 из 38</title><circle class="hit" cx="1037.4" cy="180.3" r="12"/><circle class="dot f" cx="1037.4" cy="180.3" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Api::Unreachable#initialize: 100.0% — выжило 0 из 12</title><circle class="hit" cx="1060.0" cy="179.2" r="12"/><circle class="dot f" cx="1060.0" cy="179.2" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Failures#size: 100.0% — выжило 0 из 7</title><circle class="hit" cx="1060.0" cy="178.1" r="12"/><circle class="dot f" cx="1060.0" cy="178.1" r="4.5"/></g><g class="mark"><title>Syncbox::Client::Sync#upload: 100.0% — выжило 0 из 34</title><circle class="hit" cx="1060.0" cy="177.0" r="12"/><circle class="dot f" cx="1060.0" cy="177.0" r="4.5"/></g><g class="mark"><title>Syncbox::Client::SyncState#keys: 100.0% — выжило 0 из 8</title><circle class="hit" cx="1060.0" cy="175.9" r="12"/><circle class="dot f" cx="1060.0" cy="175.9" r="4.5"/></g><g class="mark"><title>Syncbox::Server::App#put_blob: 100.0% — выжило 0 из 38</title><circle class="hit" cx="1060.0" cy="174.8" r="12"/><circle class="dot f" cx="1060.0" cy="174.8" r="4.5"/></g><g class="mark"><title>Syncbox::Server::BlobStore#inside?: 100.0% — выжило 0 из 14</title><circle class="hit" cx="1060.0" cy="173.7" r="12"/><circle class="dot f" cx="1060.0" cy="173.7" r="4.5"/></g><line class="base" x1="200" x2="200" y1="14" y2="200"/></svg></div>
+<div class="tw"><table><tr><th>Прогон</th><th class="n">методов без выживших</th><th class="n">методов со score &lt; 50%</th><th class="n">медианный score метода</th><th>больше всего выживших (выжило/мутаций)</th></tr><tr><td><b class="sw s"></b>Ruby 3.3 · Sonnet 5</td><td class="n">2 из 25</td><td class="n">11</td><td class="n">56.1%</td><td><code>Sync#run</code> 520/529; <code>Status#run</code> 406/408; <code>Push#run</code> 260/263</td></tr><tr><td><b class="sw o"></b>Ruby 3.3.12 · Opus 5.5</td><td class="n">2 из 25</td><td class="n">3</td><td class="n">82.9%</td><td><code>Client::SyncState#read</code> 43/118; <code>Client::LocalDir#write</code> 41/205; <code>Server::Store#blob_path</code> 31/44</td></tr><tr><td><b class="sw f"></b>Ruby 3.3.12 · Fable 5.1</td><td class="n">9 из 38</td><td class="n">4</td><td class="n">89.7%</td><td><code>TestSupport#wait_for_healthz</code> 35/107; <code>Client::LocalTarget#inside?</code> 28/31; <code>Client::LocalTree#scan</code> 26/28</td></tr><tr><td><b class="sw o"></b>Ruby 4.0.7 · Opus 5.5</td><td class="n">6 из 28</td><td class="n">0</td><td class="n">92.3%</td><td><code>Client::SyncState#update</code> 41/149; <code>Client::Sync#transfer</code> 35/120; <code>Client::Pull#make_parents</code> 28/90</td></tr><tr><td><b class="sw f"></b>Ruby 4.0.7 · Fable 5.1</td><td class="n">6 из 32</td><td class="n">4</td><td class="n">91.7%</td><td><code>Server::Runner#run</code> 82/83; <code>Client::Options.build_parser</code> 70/157; <code>Client::Api#describe</code> 59/106</td></tr></table></div>
+
+<h2>Примеры выживших мутантов</h2>
+<p>Из отчёта mutant: первый выживший мутант каждого метода, где они есть. Diff относительно исходного метода; тесты на такой код остаются зелёными.</p>
+<details><summary><b class="sw s"></b>Ruby 3.3 · Sonnet 5: по одному выжившему мутанту на каждый из 23 методов с выжившими</summary><h4><code>Syncbox::Sync#run</code> <span class="muted">— выжило 520 из 529</span></h4><pre><i class="ctx">@@ -1,83 +1,83 @@</i>
+<i class="del">-def run(config, out: $stdout, err: $stderr)</i>
+<i class="add">+def run(config, out:, err: $stderr)</i>
+<i class="ctx">   base = Pathname.new(config.dir)</i>
+<i class="ctx">   unless base.directory?</i>
+<i class="ctx">     err.puts(&quot;syncbox: #{config.dir}: not a directory&quot;)</i>
+<i class="ctx">     return 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   client = ServerClient.new(config.server)</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     remote_entries = client.list_blobs</i>
+<i class="ctx">   rescue ServerClient::ConnectionError, ServerClient::RequestError =&gt; e</i>
+<i class="ctx">     err.puts(&quot;syncbox: #{e.message}&quot;)</i>
+<i class="ctx">     return 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   remote = remote_entries.each_with_object({}) { |entry, h|</i>
+<i class="ctx">     unless Manifest.reserved?(entry[&quot;key&quot;])</i>
+<i class="ctx">       h[entry[&quot;key&quot;]] = entry</i>
+<i class="ctx">     end</i>
+<i class="ctx">   }</i>
+<i class="ctx">   local = Push.local_files(base).each_with_object({}) { |path, h|</i>
+<i class="ctx">     key = path.relative_path_from(base).to_s</i>
+<i class="ctx">     unless Manifest.reserved?(key)</i>
+<i class="ctx">       h[key] = path</i>
+<i class="ctx">     end</i>
+<i class="ctx">   }</i>
+<i class="ctx">   base_state = Manifest.load(base)</i>
+<i class="ctx">   new_state = {}</i>
+<i class="ctx">   uploaded = 0</i>
+<i class="ctx">   downloaded = 0</i>
+<i class="ctx">   skipped = 0</i>
+<i class="ctx">   failed = []</i>
+<i class="ctx">   (local.keys | remote.keys).sort.each { |key|</i>
+<i class="ctx">     local_path = local[key]</i>
+<i class="ctx">     remote_entry = remote[key]</i>
+<i class="ctx">     remote_sha = remote_entry &amp;&amp; remote_entry[&quot;sha256&quot;]</i>
+<i class="ctx"> </i>
+<i class="ctx">     begin</i>
+<i class="ctx">       local_sha = local_path &amp;&amp; Digest::SHA256.file(local_path).hexdigest</i>
+<i class="ctx">     rescue SystemCallError =&gt; e</i>
+<i class="ctx">       failed &lt;&lt; { key:, message: e.message }</i>
+<i class="ctx">       next</i>
+<i class="ctx">     end</i>
+<i class="ctx">     action = classify(local_sha:, remote_sha:, base_sha: base_state[key], local_mtime: local_path &amp;&amp; local_path.mtime, remote_modified_at: remote_entry &amp;&amp; remote_entry[&quot;modified_at&quot;])</i>
+<i class="ctx">     case action</i>
+<i class="ctx">     when :unchanged</i>
+<i class="ctx">       new_state[key] = local_sha</i>
+<i class="ctx">       skipped += 1</i>
+<i class="ctx">     when :push</i>
+<i class="ctx">       begin</i>
+<i class="ctx">         client.put_blob(key, local_path.binread)</i>
+<i class="ctx">         new_state[key] = local_sha</i>
+<i class="ctx">         uploaded += 1</i>
+<i class="ctx">         out.puts(&quot;uploaded #{key}&quot;)</i>
+<i class="ctx">       rescue ServerClient::ConnectionError, ServerClient::RequestError, SystemCallError =&gt; e</i>
+<i class="ctx">         failed &lt;&lt; { key:, message: e.message }</i>
+<i class="ctx">       end</i>
+<i class="ctx">     when :pull</i>
+<i class="ctx">       begin</i>
+<i class="ctx">         data = client.get_blob(key)</i>
+<i class="ctx">         local_target = base + key</i>
+<i class="ctx">         FileUtils.mkdir_p(local_target.dirname)</i>
+<i class="ctx">         local_target.binwrite(data)</i>
+<i class="ctx">         new_state[key] = remote_sha</i>
+<i class="ctx">         downloaded += 1</i>
+<i class="ctx">         out.puts(&quot;downloaded #{key}&quot;)</i>
+<i class="ctx">       rescue ServerClient::ConnectionError, ServerClient::RequestError, SystemCallError =&gt; e</i>
+<i class="ctx">         failed &lt;&lt; { key:, message: e.message }</i>
+<i class="ctx">       end</i>
+<i class="ctx">     end</i>
+<i class="ctx">   }</i>
+<i class="ctx">   Manifest.save(base, new_state)</i>
+<i class="ctx">   FailureReport.print(failed, err)</i>
+<i class="ctx">   summary = &quot;sync complete: #{uploaded} uploaded, #{downloaded} downloaded, #{skipped} unchanged&quot;</i>
+<i class="ctx">   unless failed.empty?</i>
+<i class="ctx">     summary += &quot;, #{failed.size} failed&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx">   out.puts(summary)</i>
+<i class="ctx">   if failed.empty?</i>
+<i class="ctx">     0</i>
+<i class="ctx">   else</i>
+<i class="ctx">     1</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i>
+<i class="ctx">Uncovered mutations detected, exiting nonzero!</i></pre><h4><code>Syncbox::Status#run</code> <span class="muted">— выжило 406 из 408</span></h4><pre><i class="ctx">@@ -1,56 +1,56 @@</i>
+<i class="del">-def run(config, out: $stdout, err: $stderr)</i>
+<i class="add">+def run(config, out: $stdout, err:)</i>
+<i class="ctx">   base = Pathname.new(config.dir)</i>
+<i class="ctx">   unless base.directory?</i>
+<i class="ctx">     err.puts(&quot;syncbox: #{config.dir}: not a directory&quot;)</i>
+<i class="ctx">     return 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   client = ServerClient.new(config.server)</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     remote_sha = client.list_blobs.each_with_object({}) { |entry, h|</i>
+<i class="ctx">       unless Manifest.reserved?(entry[&quot;key&quot;])</i>
+<i class="ctx">         h[entry[&quot;key&quot;]] = entry[&quot;sha256&quot;]</i>
+<i class="ctx">       end</i>
+<i class="ctx">     }</i>
+<i class="ctx">   rescue ServerClient::ConnectionError, ServerClient::RequestError =&gt; e</i>
+<i class="ctx">     err.puts(&quot;syncbox: #{e.message}&quot;)</i>
+<i class="ctx">     return 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   failed = []</i>
+<i class="ctx">   local_sha = {}</i>
+<i class="ctx">   Push.local_files(base).each do |path|</i>
+<i class="ctx">     key = path.relative_path_from(base).to_s</i>
+<i class="ctx">     local_sha[key] = Digest::SHA256.file(path).hexdigest</i>
+<i class="ctx">   rescue SystemCallError =&gt; e</i>
+<i class="ctx">     failed &lt;&lt; { key:, message: e.message }</i>
+<i class="ctx">   end</i>
+<i class="ctx">   FailureReport.print(failed, err)</i>
+<i class="ctx">   to_upload = local_sha.each_key.select { |key|</i>
+<i class="ctx">     remote_sha[key] != local_sha[key]</i>
+<i class="ctx">   }.sort</i>
+<i class="ctx">   to_download = remote_sha.each_key.select { |key|</i>
+<i class="ctx">     local_sha[key] != remote_sha[key]</i>
+<i class="ctx">   }.sort</i>
+<i class="ctx">   if to_upload.empty? &amp;&amp; to_download.empty?</i>
+<i class="ctx">     out.puts(&quot;status: up to date, nothing to upload or download&quot;)</i>
+<i class="ctx">     return failed.empty? ? 0 : 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   unless to_upload.empty?</i>
+<i class="ctx">     out.puts(&quot;would upload (local -&gt; server):&quot;)</i>
+<i class="ctx">     to_upload.each { |key|</i>
+<i class="ctx">       out.puts(&quot;  #{key}&quot;)</i>
+<i class="ctx">     }</i>
+<i class="ctx">   end</i>
+<i class="ctx">   unless to_download.empty?</i>
+<i class="ctx">     out.puts(&quot;would download (server -&gt; local):&quot;)</i>
+<i class="ctx">     to_download.each { |key|</i>
+<i class="ctx">       out.puts(&quot;  #{key}&quot;)</i>
+<i class="ctx">     }</i>
+<i class="ctx">   end</i>
+<i class="ctx">   out.puts(&quot;status: #{to_upload.size} to upload, #{to_download.size} to download&quot;)</i>
+<i class="ctx">   if failed.empty?</i>
+<i class="ctx">     0</i>
+<i class="ctx">   else</i>
+<i class="ctx">     1</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Push#run</code> <span class="muted">— выжило 260 из 263</span></h4><pre><i class="ctx">@@ -1,47 +1,47 @@</i>
+<i class="del">-def run(config, out: $stdout, err: $stderr)</i>
+<i class="add">+def run(config, out:, err: $stderr)</i>
+<i class="ctx">   base = Pathname.new(config.dir)</i>
+<i class="ctx">   unless base.directory?</i>
+<i class="ctx">     err.puts(&quot;syncbox: #{config.dir}: not a directory&quot;)</i>
+<i class="ctx">     return 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   client = ServerClient.new(config.server)</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     remote_sha = client.list_blobs.each_with_object({}) { |entry, h|</i>
+<i class="ctx">       h[entry[&quot;key&quot;]] = entry[&quot;sha256&quot;]</i>
+<i class="ctx">     }</i>
+<i class="ctx">   rescue ServerClient::ConnectionError, ServerClient::RequestError =&gt; e</i>
+<i class="ctx">     err.puts(&quot;syncbox: #{e.message}&quot;)</i>
+<i class="ctx">     return 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   uploaded = 0</i>
+<i class="ctx">   skipped = 0</i>
+<i class="ctx">   failed = []</i>
+<i class="ctx">   local_files(base).each { |path|</i>
+<i class="ctx">     key = path.relative_path_from(base).to_s</i>
+<i class="ctx"> </i>
+<i class="ctx">     begin</i>
+<i class="ctx">       sha256 = Digest::SHA256.file(path).hexdigest</i>
+<i class="ctx">       if remote_sha[key] == sha256</i>
+<i class="ctx">         skipped += 1</i>
+<i class="ctx">         next</i>
+<i class="ctx">       end</i>
+<i class="ctx">       client.put_blob(key, path.binread)</i>
+<i class="ctx">       uploaded += 1</i>
+<i class="ctx">       out.puts(&quot;uploaded #{key}&quot;)</i>
+<i class="ctx">     rescue ServerClient::ConnectionError, ServerClient::RequestError, SystemCallError =&gt; e</i>
+<i class="ctx">       failed &lt;&lt; { key:, message: e.message }</i>
+<i class="ctx">     end</i>
+<i class="ctx">   }</i>
+<i class="ctx">   FailureReport.print(failed, err)</i>
+<i class="ctx">   summary = &quot;push complete: #{uploaded} uploaded, #{skipped} unchanged&quot;</i>
+<i class="ctx">   unless failed.empty?</i>
+<i class="ctx">     summary += &quot;, #{failed.size} failed&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx">   out.puts(summary)</i>
+<i class="ctx">   if failed.empty?</i>
+<i class="ctx">     0</i>
+<i class="ctx">   else</i>
+<i class="ctx">     1</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Pull#run</code> <span class="muted">— выжило 258 из 261</span></h4><pre><i class="ctx">@@ -1,50 +1,50 @@</i>
+<i class="del">-def run(config, out: $stdout, err: $stderr)</i>
+<i class="add">+def run(config, out:, err: $stderr)</i>
+<i class="ctx">   base = Pathname.new(config.dir)</i>
+<i class="ctx">   unless base.directory?</i>
+<i class="ctx">     err.puts(&quot;syncbox: #{config.dir}: not a directory&quot;)</i>
+<i class="ctx">     return 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   client = ServerClient.new(config.server)</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     remote_blobs = client.list_blobs</i>
+<i class="ctx">   rescue ServerClient::ConnectionError, ServerClient::RequestError =&gt; e</i>
+<i class="ctx">     err.puts(&quot;syncbox: #{e.message}&quot;)</i>
+<i class="ctx">     return 1</i>
+<i class="ctx">   end</i>
+<i class="ctx">   downloaded = 0</i>
+<i class="ctx">   skipped = 0</i>
+<i class="ctx">   failed = []</i>
+<i class="ctx">   remote_blobs.each { |entry|</i>
+<i class="ctx">     key = entry[&quot;key&quot;]</i>
+<i class="ctx">     if Manifest.reserved?(key)</i>
+<i class="ctx">       next</i>
+<i class="ctx">     end</i>
+<i class="ctx">     local_path = base + key</i>
+<i class="ctx"> </i>
+<i class="ctx">     begin</i>
+<i class="ctx">       if local_path.file? &amp;&amp; Digest::SHA256.file(local_path).hexdigest == entry[&quot;sha256&quot;]</i>
+<i class="ctx">         skipped += 1</i>
+<i class="ctx">         next</i>
+<i class="ctx">       end</i>
+<i class="ctx">       data = client.get_blob(key)</i>
+<i class="ctx">       FileUtils.mkdir_p(local_path.dirname)</i>
+<i class="ctx">       local_path.binwrite(data)</i>
+<i class="ctx">       downloaded += 1</i>
+<i class="ctx">       out.puts(&quot;downloaded #{key}&quot;)</i>
+<i class="ctx">     rescue ServerClient::ConnectionError, ServerClient::RequestError, SystemCallError =&gt; e</i>
+<i class="ctx">       failed &lt;&lt; { key:, message: e.message }</i>
+<i class="ctx">     end</i>
+<i class="ctx">   }</i>
+<i class="ctx">   FailureReport.print(failed, err)</i>
+<i class="ctx">   summary = &quot;pull complete: #{downloaded} downloaded, #{skipped} unchanged&quot;</i>
+<i class="ctx">   unless failed.empty?</i>
+<i class="ctx">     summary += &quot;, #{failed.size} failed&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx">   out.puts(summary)</i>
+<i class="ctx">   if failed.empty?</i>
+<i class="ctx">     0</i>
+<i class="ctx">   else</i>
+<i class="ctx">     1</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Sync#classify</code> <span class="muted">— выжило 135 из 139</span></h4><pre><i class="ctx">@@ -1,26 +1,3 @@</i>
+<i class="ctx"> def classify(local_sha:, remote_sha:, base_sha:, local_mtime:, remote_modified_at:)</i>
+<i class="del">-  if local_sha.nil? &amp;&amp; remote_sha.nil?</i>
+<i class="del">-    return :none</i>
+<i class="del">-  end</i>
+<i class="del">-  if remote_sha.nil?</i>
+<i class="del">-    return :push</i>
+<i class="del">-  end</i>
+<i class="del">-  if local_sha.nil?</i>
+<i class="del">-    return :pull</i>
+<i class="del">-  end</i>
+<i class="del">-  if local_sha == remote_sha</i>
+<i class="del">-    return :unchanged</i>
+<i class="del">-  end</i>
+<i class="del">-  if base_sha &amp;&amp; base_sha == remote_sha</i>
+<i class="del">-    return :push</i>
+<i class="del">-  end</i>
+<i class="del">-  if base_sha &amp;&amp; base_sha == local_sha</i>
+<i class="del">-    return :pull</i>
+<i class="del">-  end</i>
+<i class="del">-  remote_time = Time.parse(remote_modified_at)</i>
+<i class="del">-  if local_mtime.to_i &gt;= remote_time.to_i</i>
+<i class="del">-    :push</i>
+<i class="del">-  else</i>
+<i class="del">-    :pull</i>
+<i class="del">-  end</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Push#local_files</code> <span class="muted">— выжило 71 из 73</span></h4><pre><i class="ctx">@@ -1,12 +1,3 @@</i>
+<i class="ctx"> def local_files(base)</i>
+<i class="del">-  Find.find(base.to_s).each_with_object([]) { |entry, files|</i>
+<i class="del">-    path = Pathname.new(entry)</i>
+<i class="del">-    unless path.file?</i>
+<i class="del">-      next</i>
+<i class="del">-    end</i>
+<i class="del">-    if Manifest.reserved?(path.relative_path_from(base).to_s)</i>
+<i class="del">-      next</i>
+<i class="del">-    end</i>
+<i class="del">-    files &lt;&lt; path</i>
+<i class="del">-  }.sort</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Manifest#save</code> <span class="muted">— выжило 58 из 59</span></h4><pre><i class="ctx">@@ -1,7 +1,3 @@</i>
+<i class="ctx"> def save(base, state)</i>
+<i class="del">-  dir = base + DIR</i>
+<i class="del">-  FileUtils.mkdir_p(dir)</i>
+<i class="del">-  tmp = dir + &quot;#{FILE_NAME}.#{SecureRandom.hex(8)}.tmp&quot;</i>
+<i class="del">-  tmp.write(JSON.generate(state))</i>
+<i class="del">-  File.rename(tmp, state_path(base))</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::FailureReport#print</code> <span class="muted">— выжило 53 из 54</span></h4><pre><i class="ctx">@@ -1,9 +1,3 @@</i>
+<i class="ctx"> def print(failed, err)</i>
+<i class="del">-  if failed.empty?</i>
+<i class="del">-    return</i>
+<i class="del">-  end</i>
+<i class="del">-  err.puts(&quot;syncbox: #{failed.size} file(s) failed:&quot;)</i>
+<i class="del">-  failed.each { |f|</i>
+<i class="del">-    err.puts(&quot;  #{f[:key]}: #{f[:message]}&quot;)</i>
+<i class="del">-  }</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ServerClient#perform</code> <span class="muted">— выжило 49 из 103</span></h4><pre><i class="ctx">@@ -1,15 +1,15 @@</i>
+<i class="ctx"> def perform(req)</i>
+<i class="del">-  Net::HTTP.start(@base_uri.host, @base_uri.port, use_ssl: @base_uri.scheme == &quot;https&quot;, open_timeout: 10, read_timeout: 60) { |http|</i>
+<i class="add">+  Net::HTTP.start(@base_uri.host, @base_uri.port, open_timeout: 10, read_timeout: 60) { |http|</i>
+<i class="ctx">     http.request(req)</i>
+<i class="ctx">   }</i>
+<i class="ctx"> rescue Net::OpenTimeout</i>
+<i class="ctx">   raise(ConnectionError, &quot;cannot reach server at #{@base_uri}: connection timed out&quot;)</i>
+<i class="ctx"> rescue Net::ReadTimeout</i>
+<i class="ctx">   raise(ConnectionError, &quot;cannot reach server at #{@base_uri}: timed out waiting for a response&quot;)</i>
+<i class="ctx"> rescue SocketError =&gt; e</i>
+<i class="ctx">   raise(ConnectionError, &quot;cannot reach server at #{@base_uri}: host could not be resolved (#{e.message})&quot;)</i>
+<i class="ctx"> rescue Errno::ECONNREFUSED</i>
+<i class="ctx">   raise(ConnectionError, &quot;cannot reach server at #{@base_uri}: connection refused&quot;)</i>
+<i class="ctx"> rescue SystemCallError, EOFError =&gt; e</i>
+<i class="ctx">   raise(ConnectionError, &quot;cannot reach server at #{@base_uri}: #{e.message}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ClientConfig.parse</code> <span class="muted">— выжило 44 из 161</span></h4><pre><i class="ctx">@@ -1,22 +1,22 @@</i>
+<i class="del">-def self.parse(argv, env = ENV)</i>
+<i class="add">+def self.parse(argv, env)</i>
+<i class="ctx">   argv = argv.dup</i>
+<i class="ctx">   command = argv.shift</i>
+<i class="ctx">   unless COMMANDS.include?(command)</i>
+<i class="ctx">     raise(Error, &quot;usage: syncbox &lt;#{COMMANDS.join(&quot;|&quot;)}&gt; &lt;dir&gt; --server &lt;url&gt;&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   dir = argv.shift</i>
+<i class="ctx">   if dir.nil? || dir.empty? || dir.start_with?(&quot;-&quot;)</i>
+<i class="ctx">     raise(Error, &quot;usage: syncbox #{command} &lt;dir&gt; --server &lt;url&gt;&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   server = env[&quot;SYNCBOX_SERVER&quot;]</i>
+<i class="ctx">   parser = OptionParser.new { |opts|</i>
+<i class="ctx">     opts.on(&quot;--server URL&quot;, String, &quot;Syncbox server URL (required)&quot;) { |v|</i>
+<i class="ctx">       server = v</i>
+<i class="ctx">     }</i>
+<i class="ctx">   }</i>
+<i class="ctx">   parser.parse!(argv)</i>
+<i class="ctx">   if server.nil? || server.empty?</i>
+<i class="ctx">     raise(Error, &quot;--server is required (or set SYNCBOX_SERVER)&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   new(command:, dir:, server:)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Manifest#load</code> <span class="muted">— выжило 30 из 32</span></h4><pre><i class="ctx">@@ -1,9 +1,2 @@</i>
+<i class="ctx"> def load(base)</i>
+<i class="del">-  path = state_path(base)</i>
+<i class="del">-  unless path.file?</i>
+<i class="del">-    return {}</i>
+<i class="del">-  end</i>
+<i class="del">-  JSON.parse(path.read)</i>
+<i class="del">-rescue JSON::ParserError</i>
+<i class="del">-  {}</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::App#blob_key_valid?</code> <span class="muted">— выжило 28 из 113</span></h4><pre><i class="ctx">@@ -1,14 +1,14 @@</i>
+<i class="ctx"> def blob_key_valid?(key)</i>
+<i class="del">-  if key.nil? || key.empty?</i>
+<i class="add">+  if nil</i>
+<i class="ctx">     return false</i>
+<i class="ctx">   end</i>
+<i class="ctx">   unless key.valid_encoding?</i>
+<i class="ctx">     return false</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if key.include?(&quot;\u0000&quot;)</i>
+<i class="ctx">     return false</i>
+<i class="ctx">   end</i>
+<i class="ctx">   key.split(&quot;/&quot;, -1).none? { |segment|</i>
+<i class="ctx">     segment.empty? || segment == &quot;.&quot; || segment == &quot;..&quot; || segment.start_with?(TMP_PREFIX)</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Manifest#reserved?</code> <span class="muted">— выжило 22 из 23</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def reserved?(key)</i>
+<i class="del">-  key == DIR || key.start_with?(&quot;#{DIR}/&quot;)</i>
+<i class="add">+  super</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ServerClient#initialize</code> <span class="muted">— выжило 18 из 41</span></h4><pre><i class="ctx">@@ -1,6 +1,4 @@</i>
+<i class="ctx"> def initialize(base_url)</i>
+<i class="ctx">   @base_uri = URI.parse(base_url)</i>
+<i class="del">-  unless @base_uri.is_a?(URI::HTTP) &amp;&amp; @base_uri.host</i>
+<i class="del">-    raise(ArgumentError, &quot;invalid --server URL: #{base_url}&quot;)</i>
+<i class="del">-  end</i>
+<i class="add">+  nil</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::App#resolve_blob_path</code> <span class="muted">— выжило 17 из 66</span></h4><pre><i class="ctx">@@ -1,11 +1,11 @@</i>
+<i class="ctx"> def resolve_blob_path(key)</i>
+<i class="ctx">   unless blob_key_valid?(key)</i>
+<i class="ctx">     return nil</i>
+<i class="ctx">   end</i>
+<i class="del">-  root = File.expand_path(settings.data_dir)</i>
+<i class="add">+  root = settings.data_dir</i>
+<i class="ctx">   path = File.expand_path(File.join(root, key))</i>
+<i class="ctx">   unless path == root || path.start_with?(&quot;#{root}#{File::SEPARATOR}&quot;)</i>
+<i class="ctx">     return nil</i>
+<i class="ctx">   end</i>
+<i class="ctx">   path</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Config.parse</code> <span class="muted">— выжило 16 из 129</span></h4><pre><i class="ctx">@@ -1,21 +1,21 @@</i>
+<i class="del">-def self.parse(argv, env = ENV)</i>
+<i class="add">+def self.parse(argv, env)</i>
+<i class="ctx">   data_dir = env[&quot;SYNCBOX_DATA_DIR&quot;]</i>
+<i class="ctx">   port = if env[&quot;SYNCBOX_PORT&quot;]</i>
+<i class="ctx">     Integer(env[&quot;SYNCBOX_PORT&quot;])</i>
+<i class="ctx">   else</i>
+<i class="ctx">     DEFAULT_PORT</i>
+<i class="ctx">   end</i>
+<i class="ctx">   parser = OptionParser.new { |opts|</i>
+<i class="ctx">     opts.on(&quot;--data-dir PATH&quot;, String, &quot;Directory to store blobs in (required)&quot;) { |v|</i>
+<i class="ctx">       data_dir = v</i>
+<i class="ctx">     }</i>
+<i class="ctx">     opts.on(&quot;--port N&quot;, Integer, &quot;Port to listen on (default #{DEFAULT_PORT})&quot;) { |v|</i>
+<i class="ctx">       port = v</i>
+<i class="ctx">     }</i>
+<i class="ctx">   }</i>
+<i class="ctx">   parser.parse!(argv.dup)</i>
+<i class="ctx">   if data_dir.nil? || data_dir.empty?</i>
+<i class="ctx">     raise(Error, &quot;--data-dir is required (or set SYNCBOX_DATA_DIR)&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   new(data_dir:, port:)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Manifest#state_path</code> <span class="muted">— выжило 14 из 15</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def state_path(base)</i>
+<i class="del">-  base + DIR + FILE_NAME</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ServerClient#uri_for</code> <span class="muted">— выжило 10 из 31</span></h4><pre><i class="ctx">@@ -1,6 +1,6 @@</i>
+<i class="ctx"> def uri_for(path)</i>
+<i class="ctx">   uri = @base_uri.dup</i>
+<i class="del">-  base_path = uri.path.to_s.chomp(&quot;/&quot;)</i>
+<i class="add">+  base_path = nil</i>
+<i class="ctx">   uri.path=&quot;#{base_path}#{path}&quot;</i>
+<i class="ctx">   uri</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ServerClient#put_blob</code> <span class="muted">— выжило 9 из 70</span></h4><pre><i class="ctx">@@ -1,10 +1,10 @@</i>
+<i class="ctx"> def put_blob(key, data)</i>
+<i class="del">-  req = Net::HTTP::Put.new(uri_for(&quot;/blobs/#{escape_key(key)}&quot;))</i>
+<i class="add">+  req = Net::HTTP::Put.new(&quot;/blobs/#{escape_key(key)}&quot;)</i>
+<i class="ctx">   req.body=data</i>
+<i class="ctx">   req[&quot;Content-Type&quot;] = &quot;application/octet-stream&quot;</i>
+<i class="ctx">   response = perform(req)</i>
+<i class="ctx">   unless response.is_a?(Net::HTTPCreated)</i>
+<i class="ctx">     raise(RequestError, &quot;PUT /blobs/#{key} failed: HTTP #{response.code}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   response</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ServerClient#escape_segment</code> <span class="muted">— выжило 8 из 44</span></h4><pre><i class="ctx">@@ -1,10 +1,10 @@</i>
+<i class="ctx"> def escape_segment(segment)</i>
+<i class="del">-  segment.b.each_byte.map { |byte|</i>
+<i class="add">+  segment.each_byte.map { |byte|</i>
+<i class="ctx">     chr = byte.chr</i>
+<i class="ctx">     if chr =~ /[A-Za-z0-9\-._~]/</i>
+<i class="ctx">       chr</i>
+<i class="ctx">     else</i>
+<i class="ctx">       format(&quot;%%%02X&quot;, byte)</i>
+<i class="ctx">     end</i>
+<i class="ctx">   }.join</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ServerClient#get_blob</code> <span class="muted">— выжило 8 из 54</span></h4><pre><i class="ctx">@@ -1,7 +1,7 @@</i>
+<i class="ctx"> def get_blob(key)</i>
+<i class="del">-  response = perform(Net::HTTP::Get.new(uri_for(&quot;/blobs/#{escape_key(key)}&quot;)))</i>
+<i class="add">+  response = perform(Net::HTTP::Get.new(&quot;/blobs/#{escape_key(key)}&quot;))</i>
+<i class="ctx">   unless response.is_a?(Net::HTTPSuccess)</i>
+<i class="ctx">     raise(RequestError, &quot;GET /blobs/#{key} failed: HTTP #{response.code}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   response.body.to_s</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ServerClient#list_blobs</code> <span class="muted">— выжило 5 из 51</span></h4><pre><i class="ctx">@@ -1,7 +1,7 @@</i>
+<i class="ctx"> def list_blobs</i>
+<i class="del">-  response = perform(Net::HTTP::Get.new(uri_for(&quot;/blobs&quot;)))</i>
+<i class="add">+  response = perform(Net::HTTP::Get.new(&quot;/blobs&quot;))</i>
+<i class="ctx">   unless response.is_a?(Net::HTTPSuccess)</i>
+<i class="ctx">     raise(RequestError, &quot;GET /blobs failed: HTTP #{response.code}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   JSON.parse(response.body)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::ServerClient#escape_key</code> <span class="muted">— выжило 4 из 34</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def escape_key(key)</i>
+<i class="del">-  key.split(&quot;/&quot;, -1).map { |segment|</i>
+<i class="add">+  key.split(&quot;/&quot;, 0).map { |segment|</i>
+<i class="ctx">     escape_segment(segment)</i>
+<i class="ctx">   }.join(&quot;/&quot;)</i>
+<i class="ctx"> end</i></pre></details><details><summary><b class="sw o"></b>Ruby 3.3.12 · Opus 5.5: по одному выжившему мутанту на каждый из 23 методов с выжившими</summary><h4><code>Syncbox::Client::SyncState#read</code> <span class="muted">— выжило 43 из 118</span></h4><pre><i class="ctx">@@ -1,17 +1,17 @@</i>
+<i class="ctx"> def read</i>
+<i class="del">-  json = File.open(path, File::RDONLY | File::NOFOLLOW | File::BINARY, &amp;:read)</i>
+<i class="add">+  json = self.open(path, File::RDONLY | File::NOFOLLOW | File::BINARY, &amp;:read)</i>
+<i class="ctx">   data = JSON.parse(json.force_encoding(Encoding::UTF_8))</i>
+<i class="ctx">   if data.is_a?(Hash) &amp;&amp; data[&quot;version&quot;] == VERSION</i>
+<i class="ctx">     servers = data[&quot;servers&quot;]</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if valid?(servers)</i>
+<i class="ctx">     return servers</i>
+<i class="ctx">   end</i>
+<i class="ctx">   ignore(&quot;not a syncbox #{VERSION} state file&quot;)</i>
+<i class="ctx"> rescue Errno::ENOENT</i>
+<i class="ctx">   {}</i>
+<i class="ctx"> rescue SystemCallError, IOError =&gt; e</i>
+<i class="ctx">   ignore(LocalDir.reason(e))</i>
+<i class="ctx"> rescue JSON::ParserError, EncodingError</i>
+<i class="ctx">   ignore(&quot;invalid JSON&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::LocalDir#write</code> <span class="muted">— выжило 41 из 205</span></h4><pre><i class="ctx">@@ -1,27 +1,27 @@</i>
+<i class="ctx"> def write(target)</i>
+<i class="ctx">   dir = File.dirname(target.path)</i>
+<i class="ctx">   make_parent_dirs(target.key)</i>
+<i class="del">-  staged = File.join(dir, &quot;#{STAGING_PREFIX}#{SecureRandom.hex(8)}#{STAGING_SUFFIX}&quot;)</i>
+<i class="add">+  staged = File.join(dir, &quot;#{STAGING_PREFIX}#{SecureRandom}#{STAGING_SUFFIX}&quot;)</i>
+<i class="ctx">   File.open(staged, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW | File::BINARY, 438) { |file|</i>
+<i class="ctx">     yield(file)</i>
+<i class="ctx">     if target.stat</i>
+<i class="ctx">       file.chmod(target.stat.mode &amp; 4095)</i>
+<i class="ctx">     end</i>
+<i class="ctx">     file.fsync</i>
+<i class="ctx">   }</i>
+<i class="ctx">   unless File.realpath(dir).b == File.dirname(File.join(real_root, target.key.b))</i>
+<i class="ctx">     raise(Error, &quot;cannot write #{target.key}: its directory has moved&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   File.rename(staged, target.path)</i>
+<i class="ctx">   staged = nil</i>
+<i class="ctx"> rescue SystemCallError, IOError =&gt; e</i>
+<i class="ctx">   raise(Error, &quot;cannot write #{target.key}: #{self.class.reason(e)}&quot;)</i>
+<i class="ctx"> ensure</i>
+<i class="ctx">   begin</i>
+<i class="ctx">     if staged</i>
+<i class="ctx">       File.unlink(staged)</i>
+<i class="ctx">     end</i>
+<i class="ctx">   rescue SystemCallError</i>
+<i class="ctx">     nil</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::Store#blob_path</code> <span class="muted">— выжило 31 из 44</span></h4><pre><i class="ctx">@@ -1,7 +1,3 @@</i>
+<i class="ctx"> def blob_path(key)</i>
+<i class="del">-  path = File.expand_path(File.join(@blobs_dir, key.b)).b</i>
+<i class="del">-  unless path.start_with?(&quot;#{@blobs_dir}/&quot;)</i>
+<i class="del">-    raise(InvalidKeyError, &quot;key resolves outside the store&quot;)</i>
+<i class="del">-  end</i>
+<i class="del">-  path</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Remote#network_failure</code> <span class="muted">— выжило 29 из 84</span></h4><pre><i class="ctx">@@ -1,19 +1,19 @@</i>
+<i class="ctx"> def network_failure(error, what)</i>
+<i class="ctx">   server = &quot;server #{@base_url}&quot;</i>
+<i class="ctx">   case error</i>
+<i class="ctx">   when Net::OpenTimeout, SocketError, *CONNECT_ERRNOS</i>
+<i class="ctx">     &quot;cannot reach #{server}#{unless what == LIST</i>
+<i class="ctx">   &quot; for #{what}&quot;</i>
+<i class="ctx"> end}: #{connect_reason(error)}&quot;</i>
+<i class="ctx">   when Net::ReadTimeout</i>
+<i class="ctx">     &quot;no answer from #{server} to #{what} within #{seconds(@timeouts.read)}&quot;</i>
+<i class="ctx">   when Net::WriteTimeout</i>
+<i class="del">-    &quot;timed out sending #{what} to #{server}: no progress for #{seconds(@timeouts.write)}&quot;</i>
+<i class="add">+    &quot;timed out sending #{nil} to #{server}: no progress for #{seconds(@timeouts.write)}&quot;</i>
+<i class="ctx">   when EOFError</i>
+<i class="ctx">     &quot;connection to #{server} closed during #{what}&quot;</i>
+<i class="ctx">   when SystemCallError</i>
+<i class="ctx">     &quot;connection to #{server} failed during #{what}: #{LocalDir.reason(error)}&quot;</i>
+<i class="ctx">   else</i>
+<i class="ctx">     &quot;connection to #{server} failed during #{what}: #{error.message}&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Sync#comparable_times</code> <span class="muted">— выжило 29 из 98</span></h4><pre><i class="ctx">@@ -1,8 +1,8 @@</i>
+<i class="ctx"> def comparable_times(entry, blob)</i>
+<i class="del">-  text = blob[&quot;modified_at&quot;]</i>
+<i class="add">+  text = blob.fetch(&quot;modified_at&quot;)</i>
+<i class="ctx">   server_mtime = Time.iso8601(text)</i>
+<i class="ctx">   digits = [text[/T\d\d:\d\d:\d\d\.(\d+)/, 1].to_s.size, 9].min</i>
+<i class="ctx">   [LocalDir.mtime(entry).floor(digits), server_mtime.floor(digits)]</i>
+<i class="ctx"> rescue ArgumentError, TypeError</i>
+<i class="ctx">   raise(Error, &quot;unexpected response from server to GET /blobs: invalid modified_at for #{entry.key}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::Store#staging_path</code> <span class="muted">— выжило 22 из 24</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def staging_path</i>
+<i class="del">-  File.join(@tmp_dir, &quot;#{SecureRandom.hex(16)}#{STAGING_SUFFIX}&quot;)</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Remote#list</code> <span class="muted">— выжило 18 из 131</span></h4><pre><i class="ctx">@@ -1,13 +1,13 @@</i>
+<i class="ctx"> def list</i>
+<i class="ctx">   response = request(Net::HTTP::Get.new(&quot;#{@base_path}/blobs&quot;), LIST)</i>
+<i class="ctx">   expect(response, &quot;200&quot;, LIST)</i>
+<i class="ctx">   entries = JSON.parse(response.body)</i>
+<i class="del">-  unless entries.is_a?(Array) &amp;&amp; entries.all? { |e|</i>
+<i class="add">+  unless entries.all? { |e|</i>
+<i class="ctx">     e.is_a?(Hash) &amp;&amp; e[&quot;key&quot;].is_a?(String) &amp;&amp; e[&quot;sha256&quot;].is_a?(String)</i>
+<i class="ctx">   }</i>
+<i class="ctx">     raise(Error, &quot;unexpected response from server to GET /blobs: not a list of blobs&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   entries</i>
+<i class="ctx"> rescue JSON::ParserError</i>
+<i class="ctx">   raise(Error, &quot;unexpected response from server to GET /blobs: invalid JSON&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Remote#request</code> <span class="muted">— выжило 13 из 49</span></h4><pre><i class="ctx">@@ -1,11 +1,9 @@</i>
+<i class="ctx"> def request(req, what, &amp;block)</i>
+<i class="del">-  unless @http.started?</i>
+<i class="del">-    @http.start</i>
+<i class="del">-  end</i>
+<i class="add">+  nil</i>
+<i class="ctx">   @http.request(req, &amp;block)</i>
+<i class="ctx"> rescue *NETWORK_ERRORS =&gt; e</i>
+<i class="ctx">   if @http.started?</i>
+<i class="ctx">     @http.finish</i>
+<i class="ctx">   end</i>
+<i class="ctx">   raise(Error, network_failure(e, what))</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::CLI.run</code> <span class="muted">— выжило 12 из 204</span></h4><pre><i class="ctx">@@ -1,29 +1,29 @@</i>
+<i class="del">-def self.run(argv, env: ENV, out: $stdout, err: $stderr, timeouts: Remote::TIMEOUTS)</i>
+<i class="add">+def self.run(argv, env:, out: $stdout, err: $stderr, timeouts: Remote::TIMEOUTS)</i>
+<i class="ctx">   options = Options.parse(argv, env)</i>
+<i class="ctx">   if options.nil?</i>
+<i class="ctx">     out.puts(Options.usage)</i>
+<i class="ctx">     return 0</i>
+<i class="ctx">   end</i>
+<i class="ctx">   local_dir = LocalDir.new(options.dir, on_skip: -&gt;(path, why) {</i>
+<i class="ctx">     err.puts(&quot;syncbox: skipping #{path}: #{why}&quot;)</i>
+<i class="ctx">   })</i>
+<i class="ctx">   Remote.open(options.server, timeouts:) { |remote|</i>
+<i class="ctx">     case options.command</i>
+<i class="ctx">     when &quot;push&quot;</i>
+<i class="ctx">       Push.new(local_dir, remote, out:).run</i>
+<i class="ctx">     when &quot;pull&quot;</i>
+<i class="ctx">       Pull.new(local_dir, remote, out:).run</i>
+<i class="ctx">     when &quot;sync&quot;</i>
+<i class="ctx">       Sync.new(local_dir, remote, server: options.server, out:, err:).run</i>
+<i class="ctx">     when &quot;status&quot;</i>
+<i class="ctx">       Status.new(local_dir, remote, out:, err:).run</i>
+<i class="ctx">     end</i>
+<i class="ctx">   }</i>
+<i class="ctx">   0</i>
+<i class="ctx"> rescue UsageError =&gt; e</i>
+<i class="ctx">   err.puts(&quot;syncbox: #{e.message}&quot;, Options.usage)</i>
+<i class="ctx">   2</i>
+<i class="ctx"> rescue Error =&gt; e</i>
+<i class="ctx">   err.puts(&quot;syncbox: #{e.message}&quot;)</i>
+<i class="ctx">   1</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#get_blob</code> <span class="muted">— выжило 8 из 83</span></h4><pre><i class="ctx">@@ -1,10 +1,10 @@</i>
+<i class="ctx"> def get_blob(raw_key)</i>
+<i class="ctx">   file = @store.open(decode_key(raw_key))</i>
+<i class="ctx">   unless file</i>
+<i class="ctx">     return text(404, &quot;not found\n&quot;)</i>
+<i class="ctx">   end</i>
+<i class="del">-  headers = { &quot;content-type&quot; =&gt; &quot;application/octet-stream&quot;, &quot;content-length&quot; =&gt; file.size.to_s }</i>
+<i class="add">+  headers = { &quot;content-type&quot; =&gt; &quot;application/octet-stream&quot;, &quot;content-length&quot; =&gt; &quot;&quot; }</i>
+<i class="ctx">   [200, headers, FileBody.new(file)]</i>
+<i class="ctx"> rescue InvalidKeyError =&gt; e</i>
+<i class="ctx">   text(400, &quot;invalid key: #{e.message}\n&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::LocalDir#children</code> <span class="muted">— выжило 7 из 41</span></h4><pre><i class="ctx">@@ -1,9 +1,9 @@</i>
+<i class="ctx"> def children(dir, rel)</i>
+<i class="del">-  Dir.children(dir, encoding: Encoding::BINARY)</i>
+<i class="add">+  Dir.children(dir, encoding: nil)</i>
+<i class="ctx"> rescue SystemCallError =&gt; e</i>
+<i class="ctx">   raise(Error, &quot;cannot read directory #{if rel</i>
+<i class="ctx">   display(rel)</i>
+<i class="ctx"> else</i>
+<i class="ctx">   @root</i>
+<i class="ctx"> end}: #{self.class.reason(e)}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Remote::BlockError#initialize</code> <span class="muted">— выжило 7 из 13</span></h4><pre><i class="ctx">@@ -1,4 +1,4 @@</i>
+<i class="ctx"> def initialize(error)</i>
+<i class="del">-  super(error.message)</i>
+<i class="add">+  nil</i>
+<i class="ctx">   @error = error</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::LocalDir#reading</code> <span class="muted">— выжило 6 из 30</span></h4><pre><i class="ctx">@@ -1,10 +1,8 @@</i>
+<i class="ctx"> def reading(rel, on_error)</i>
+<i class="ctx">   yield</i>
+<i class="ctx"> rescue Error =&gt; e</i>
+<i class="del">-  if rel.nil?</i>
+<i class="del">-    raise</i>
+<i class="del">-  end</i>
+<i class="add">+  nil</i>
+<i class="ctx">   @unreadable &lt;&lt; rel</i>
+<i class="ctx">   on_error.call(e)</i>
+<i class="ctx">   nil</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Pull#run</code> <span class="muted">— выжило 6 из 165</span></h4><pre><i class="ctx">@@ -1,29 +1,29 @@</i>
+<i class="ctx"> def run</i>
+<i class="ctx">   @local_dir.real_root</i>
+<i class="ctx">   failures = Failures.new</i>
+<i class="ctx">   downloaded = 0</i>
+<i class="ctx">   unchanged = 0</i>
+<i class="ctx">   @remote.list.each { |blob|</i>
+<i class="ctx">     failures.guard {</i>
+<i class="del">-      target = @local_dir.target(blob[&quot;key&quot;])</i>
+<i class="add">+      target = @local_dir.target(blob.fetch(&quot;key&quot;))</i>
+<i class="ctx">       unless target</i>
+<i class="ctx">         next</i>
+<i class="ctx">       end</i>
+<i class="ctx">       if target.stat &amp;&amp; same?(target, blob)</i>
+<i class="ctx">         unchanged += 1</i>
+<i class="ctx">         next</i>
+<i class="ctx">       end</i>
+<i class="ctx">       @local_dir.write(target) { |file|</i>
+<i class="ctx">         @remote.get(target.key) { |chunk|</i>
+<i class="ctx">           file.write(chunk)</i>
+<i class="ctx">         }</i>
+<i class="ctx">       }</i>
+<i class="ctx">       downloaded += 1</i>
+<i class="ctx">       @out.puts(&quot;downloaded #{target.key}&quot;)</i>
+<i class="ctx">     }</i>
+<i class="ctx">   }</i>
+<i class="ctx">   result = Result.new(downloaded:, unchanged:, failed: failures.size)</i>
+<i class="ctx">   @out.puts(&quot;pull: #{result.downloaded} downloaded, #{result.unchanged} unchanged#{failures.summary}&quot;)</i>
+<i class="ctx">   failures.raise_if_any(&quot;pull&quot;)</i>
+<i class="ctx">   result</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Remote.escape_key</code> <span class="muted">— выжило 4 из 36</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def self.escape_key(key)</i>
+<i class="del">-  key.split(&quot;/&quot;, -1).map { |segment|</i>
+<i class="add">+  key.split(&quot;/&quot;, 0).map { |segment|</i>
+<i class="ctx">     URI.encode_uri_component(segment)</i>
+<i class="ctx">   }.join(&quot;/&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#decode_key</code> <span class="muted">— выжило 4 из 22</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def decode_key(raw_key)</i>
+<i class="del">-  URI.decode_uri_component(raw_key, Encoding::BINARY)</i>
+<i class="add">+  URI.decode_uri_component(raw_key)</i>
+<i class="ctx"> rescue ArgumentError</i>
+<i class="ctx">   raise(InvalidKeyError, &quot;malformed percent-encoding&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::Store#each_entry</code> <span class="muted">— выжило 4 из 78</span></h4><pre><i class="ctx">@@ -1,21 +1,21 @@</i>
+<i class="ctx"> def each_entry(dir, prefix)</i>
+<i class="ctx">   Dir.children(dir, encoding: Encoding::BINARY).each { |raw_name|</i>
+<i class="ctx">     name = raw_name.dup.force_encoding(Encoding::UTF_8)</i>
+<i class="ctx">     unless name.valid_encoding?</i>
+<i class="del">-      next</i>
+<i class="add">+      break</i>
+<i class="ctx">     end</i>
+<i class="ctx">     path = File.join(dir, raw_name)</i>
+<i class="ctx"> </i>
+<i class="ctx">     begin</i>
+<i class="ctx">       stat = File.lstat(path)</i>
+<i class="ctx">     rescue SystemCallError</i>
+<i class="ctx">       next</i>
+<i class="ctx">     end</i>
+<i class="ctx">     yield(path, if prefix</i>
+<i class="ctx">       &quot;#{prefix}/#{name}&quot;</i>
+<i class="ctx">     else</i>
+<i class="ctx">       name</i>
+<i class="ctx">     end, stat)</i>
+<i class="ctx">   }</i>
+<i class="ctx"> rescue SystemCallError</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::LocalDir#initialize</code> <span class="muted">— выжило 3 из 14</span></h4><pre><i class="ctx">@@ -1,5 +1,4 @@</i>
+<i class="ctx"> def initialize(root, on_skip: nil)</i>
+<i class="ctx">   @root = root</i>
+<i class="del">-  @on_skip = on_skip || -&gt;(_path, _reason) {</i>
+<i class="del">-  }</i>
+<i class="add">+  @on_skip = on_skip</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Status#report</code> <span class="muted">— выжило 3 из 96</span></h4><pre><i class="ctx">@@ -1,10 +1,10 @@</i>
+<i class="ctx"> def report(result, failures)</i>
+<i class="ctx">   (result.uploads + result.downloads).each { |change|</i>
+<i class="ctx">     @out.puts(format(&quot;%-9s %-8s %s&quot;, change.direction, change.kind, change.key))</i>
+<i class="ctx">   }</i>
+<i class="del">-  if result.uploads.empty? &amp;&amp; result.downloads.empty? &amp;&amp; failures.empty?</i>
+<i class="add">+  if result.uploads.empty? &amp;&amp; result.downloads.empty?</i>
+<i class="ctx">     @out.puts(&quot;status: in sync, #{result.unchanged} unchanged&quot;)</i>
+<i class="ctx">   else</i>
+<i class="ctx">     @out.puts(&quot;status: #{result.uploads.size} to upload, #{result.downloads.size} to download, &quot; &quot;#{result.unchanged} unchanged#{failures.summary}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App::FileBody#close</code> <span class="muted">— выжило 3 из 7</span></h4><pre><i class="ctx">@@ -1,3 +1,2 @@</i>
+<i class="ctx"> def close</i>
+<i class="del">-  @file.close</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::SyncState#keys</code> <span class="muted">— выжило 1 из 8</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def keys</i>
+<i class="del">-  @files.keys</i>
+<i class="add">+  @files.values</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#method_not_allowed</code> <span class="muted">— выжило 1 из 19</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def method_not_allowed(allow)</i>
+<i class="del">-  text(405, &quot;method not allowed\n&quot;, &quot;allow&quot; =&gt; allow)</i>
+<i class="add">+  text(405, &quot;&quot;, &quot;allow&quot; =&gt; allow)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::Store#prune_empty_dirs</code> <span class="muted">— выжило 1 из 34</span></h4><pre><i class="ctx">@@ -1,7 +1,7 @@</i>
+<i class="ctx"> def prune_empty_dirs(dir)</i>
+<i class="del">-  while dir.bytesize &gt; @blobs_dir.bytesize</i>
+<i class="add">+  while dir.bytesize</i>
+<i class="ctx">     Dir.rmdir(dir)</i>
+<i class="ctx">     dir = File.dirname(dir)</i>
+<i class="ctx">   end</i>
+<i class="ctx"> rescue SystemCallError</i>
+<i class="ctx"> end</i></pre></details><details><summary><b class="sw f"></b>Ruby 3.3.12 · Fable 5.1: по одному выжившему мутанту на каждый из 29 методов с выжившими</summary><h4><code>Syncbox::TestSupport#wait_for_healthz</code> <span class="muted">— выжило 35 из 107</span></h4><pre><i class="ctx">@@ -1,16 +1,16 @@</i>
+<i class="del">-def wait_for_healthz(port, pid: nil, timeout: 15)</i>
+<i class="add">+def wait_for_healthz(port, pid:, timeout: 15)</i>
+<i class="ctx">   deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout</i>
+<i class="ctx">   loop {</i>
+<i class="ctx">     begin</i>
+<i class="ctx">       return Net::HTTP.get_response(URI(&quot;http://127.0.0.1:#{port}/healthz&quot;))</i>
+<i class="ctx">     rescue SystemCallError, Net::ReadTimeout, Net::OpenTimeout</i>
+<i class="ctx">     end</i>
+<i class="ctx">     if pid &amp;&amp; Process.waitpid(pid, Process::WNOHANG)</i>
+<i class="ctx">       raise(&quot;server process #{pid} exited early with #{$?.inspect}&quot;)</i>
+<i class="ctx">     end</i>
+<i class="ctx">     if Process.clock_gettime(Process::CLOCK_MONOTONIC) &gt; deadline</i>
+<i class="ctx">       raise(&quot;server on port #{port} did not become healthy within #{timeout}s&quot;)</i>
+<i class="ctx">     end</i>
+<i class="ctx">     sleep(0.05)</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i>
+<i class="ctx">Uncovered mutations detected, exiting nonzero!</i></pre><h4><code>Syncbox::Client::LocalTarget#inside?</code> <span class="muted">— выжило 28 из 31</span></h4><pre><i class="ctx">@@ -1,7 +1,3 @@</i>
+<i class="ctx"> def inside?(path, root)</i>
+<i class="del">-  path.start_with?(if root.end_with?(&quot;/&quot;)</i>
+<i class="del">-    root</i>
+<i class="del">-  else</i>
+<i class="del">-    &quot;#{root}/&quot;</i>
+<i class="del">-  end)</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::LocalTree#scan</code> <span class="muted">— выжило 26 из 28</span></h4><pre><i class="ctx">@@ -1,6 +1,3 @@</i>
+<i class="ctx"> def scan(dir, &amp;on_skip)</i>
+<i class="del">-  root = check_dir(dir)</i>
+<i class="del">-  entries = []</i>
+<i class="del">-  walk(root, &quot;&quot;, entries, on_skip)</i>
+<i class="del">-  entries.sort_by!(&amp;:key)</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api.describe_error</code> <span class="muted">— выжило 23 из 68</span></h4><pre><i class="ctx">@@ -1,14 +1,14 @@</i>
+<i class="ctx"> def self.describe_error(error)</i>
+<i class="ctx">   case error</i>
+<i class="ctx">   when Net::OpenTimeout</i>
+<i class="del">-    &quot;connection timed out after #{timeouts[:open]}s&quot;</i>
+<i class="add">+    &quot;connection timed out after #{nil}s&quot;</i>
+<i class="ctx">   when Net::ReadTimeout</i>
+<i class="ctx">     &quot;server did not respond within #{timeouts[:read]}s (read timeout)&quot;</i>
+<i class="ctx">   when Net::WriteTimeout</i>
+<i class="ctx">     &quot;server did not accept data within #{timeouts[:write]}s (write timeout)&quot;</i>
+<i class="ctx">   when EOFError</i>
+<i class="ctx">     &quot;server closed the connection without a complete response&quot;</i>
+<i class="ctx">   else</i>
+<i class="ctx">     error.message.sub(/\AFailed to open TCP connection to \S+ \((.*)\)\z/m, &quot;\\1&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api#initialize</code> <span class="muted">— выжило 21 из 96</span></h4><pre><i class="ctx">@@ -1,11 +1,11 @@</i>
+<i class="ctx"> def initialize(base_url)</i>
+<i class="ctx">   @base_url = base_url</i>
+<i class="ctx">   @prefix = base_url.path</i>
+<i class="ctx">   @http = Net::HTTP.new(base_url.host, base_url.port)</i>
+<i class="del">-  @http.use_ssl=base_url.scheme == &quot;https&quot;</i>
+<i class="add">+  nil</i>
+<i class="ctx">   timeouts = self.class.timeouts</i>
+<i class="ctx">   @http.open_timeout=timeouts[:open]</i>
+<i class="ctx">   @http.read_timeout=timeouts[:read]</i>
+<i class="ctx">   @http.write_timeout=timeouts[:write]</i>
+<i class="ctx">   @http.max_retries=0</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Store#resolve_existing_prefix</code> <span class="muted">— выжило 20 из 56</span></h4><pre><i class="ctx">@@ -1,16 +1,16 @@</i>
+<i class="ctx"> def resolve_existing_prefix(path)</i>
+<i class="ctx">   current = path</i>
+<i class="ctx">   loop do</i>
+<i class="ctx">     return File.realpath(current)</i>
+<i class="ctx">   rescue Errno::ENOENT, Errno::ENOTDIR</i>
+<i class="ctx">     parent = File.dirname(current)</i>
+<i class="del">-    if parent == current</i>
+<i class="add">+    if nil</i>
+<i class="ctx">       raise</i>
+<i class="ctx">     end</i>
+<i class="ctx">     current = parent</i>
+<i class="ctx">   end</i>
+<i class="ctx"> rescue Errno::ELOOP</i>
+<i class="ctx">   raise(InvalidKey, &quot;key resolves through a symlink loop&quot;)</i>
+<i class="ctx"> rescue *KEY_ERRORS =&gt; e</i>
+<i class="ctx">   raise(InvalidKey, &quot;key cannot be resolved to a file: #{e.message}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Failures.display_key</code> <span class="muted">— выжило 19 из 49</span></h4><pre><i class="ctx">@@ -1,7 +1,7 @@</i>
+<i class="ctx"> def self.display_key(key)</i>
+<i class="del">-  if key.is_a?(String) &amp;&amp; !key.empty? &amp;&amp; !key.match?(/[[:cntrl:]]/)</i>
+<i class="add">+  if key.is_a?(String) &amp;&amp; !key.empty?</i>
+<i class="ctx">     key</i>
+<i class="ctx">   else</i>
+<i class="ctx">     key.inspect</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api#describe</code> <span class="muted">— выжило 15 из 91</span></h4><pre><i class="ctx">@@ -1,17 +1,15 @@</i>
+<i class="ctx"> def describe(response)</i>
+<i class="ctx">   body = response.body.to_s</i>
+<i class="del">-  if body.empty?</i>
+<i class="del">-    return &quot;&quot;</i>
+<i class="del">-  end</i>
+<i class="add">+  nil</i>
+<i class="ctx">   text = begin</i>
+<i class="ctx">     payload = JSON.parse(body)</i>
+<i class="ctx">     if payload.is_a?(Hash)</i>
+<i class="ctx">       (payload[&quot;message&quot;] || payload[&quot;error&quot;])</i>
+<i class="ctx">     else</i>
+<i class="ctx">       nil</i>
+<i class="ctx">     end</i>
+<i class="ctx">   rescue JSON::ParserError</i>
+<i class="ctx">     nil</i>
+<i class="ctx">   end</i>
+<i class="ctx">   &quot;: #{text || body.b[0, ERROR_BODY_LIMIT].scrub}&quot;</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Sync#decide</code> <span class="muted">— выжило 12 из 148</span></h4><pre><i class="ctx">@@ -1,20 +1,20 @@</i>
+<i class="ctx"> def decide(key, local, remote, base_sha256)</i>
+<i class="ctx">   if remote.nil?</i>
+<i class="del">-    return Decision.new(:upload, &quot;only local&quot;, false)</i>
+<i class="add">+    return Decision.new(:upload, &quot;only local&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if local.nil?</i>
+<i class="ctx">     return Decision.new(:download, &quot;only on server&quot;, false)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if local.sha256 == remote.sha256</i>
+<i class="ctx">     return Decision.new(:unchanged, nil, false)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if base_sha256</i>
+<i class="ctx">     if local.sha256 == base_sha256</i>
+<i class="ctx">       return Decision.new(:download, &quot;changed on server&quot;, false)</i>
+<i class="ctx">     end</i>
+<i class="ctx">     if remote.sha256 == base_sha256</i>
+<i class="ctx">       return Decision.new(:upload, &quot;changed locally&quot;, false)</i>
+<i class="ctx">     end</i>
+<i class="ctx">   end</i>
+<i class="ctx">   resolve_conflict(key, local, remote, never_synced: base_sha256.nil?)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Store#strictly_inside?</code> <span class="muted">— выжило 12 из 31</span></h4><pre><i class="ctx">@@ -1,7 +1,7 @@</i>
+<i class="ctx"> def strictly_inside?(path, root)</i>
+<i class="del">-  path.start_with?(if root.end_with?(&quot;/&quot;)</i>
+<i class="add">+  path.start_with?(if nil</i>
+<i class="ctx">     root</i>
+<i class="ctx">   else</i>
+<i class="ctx">     &quot;#{root}/&quot;</i>
+<i class="ctx">   end)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api#connect</code> <span class="muted">— выжило 9 из 29</span></h4><pre><i class="ctx">@@ -1,7 +1,5 @@</i>
+<i class="ctx"> def connect</i>
+<i class="del">-  unless @http.started?</i>
+<i class="del">-    @http.start</i>
+<i class="del">-  end</i>
+<i class="add">+  nil</i>
+<i class="ctx"> rescue *NETWORK_ERRORS =&gt; e</i>
+<i class="ctx">   raise(ServerUnreachable, &quot;cannot connect to server #{@base_url}: #{self.class.describe_error(e)}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Store#forget_digest</code> <span class="muted">— выжило 9 из 18</span></h4><pre><i class="ctx">@@ -1,5 +1,3 @@</i>
+<i class="ctx"> def forget_digest(key)</i>
+<i class="del">-  @digests_lock.synchronize {</i>
+<i class="del">-    @digests.delete(key)</i>
+<i class="del">-  }</i>
+<i class="add">+  nil</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Config.parse_port</code> <span class="muted">— выжило 8 из 78</span></h4><pre><i class="ctx">@@ -1,11 +1,11 @@</i>
+<i class="ctx"> def self.parse_port(value, source:, blank_is_default: true)</i>
+<i class="ctx">   value = presence(value)</i>
+<i class="ctx">   if value.nil? &amp;&amp; blank_is_default</i>
+<i class="ctx">     return DEFAULT_PORT</i>
+<i class="ctx">   end</i>
+<i class="del">-  port = Integer(value.to_s, 10, exception: false)</i>
+<i class="add">+  port = Integer(value, 10, exception: false)</i>
+<i class="ctx">   unless port &amp;&amp; PORT_RANGE.cover?(port)</i>
+<i class="ctx">     raise(UsageError, &quot;invalid #{source} value #{value.inspect}: expected an integer in #{PORT_RANGE}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   port</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::TestSupport::FakeServer#initialize</code> <span class="muted">— выжило 8 из 47</span></h4><pre><i class="ctx">@@ -1,10 +1,10 @@</i>
+<i class="ctx"> def initialize(routes)</i>
+<i class="ctx">   @routes = routes</i>
+<i class="ctx">   @requests = []</i>
+<i class="ctx">   @hung = []</i>
+<i class="del">-  @socket = TCPServer.new(&quot;127.0.0.1&quot;, 0)</i>
+<i class="add">+  @socket = TCPServer.new(nil, 0)</i>
+<i class="ctx">   @port = @socket.addr[1]</i>
+<i class="ctx">   @thread = Thread.new {</i>
+<i class="ctx">     serve</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Sync#parse_modified_at</code> <span class="muted">— выжило 7 из 89</span></h4><pre><i class="ctx">@@ -1,9 +1,9 @@</i>
+<i class="ctx"> def parse_modified_at(key, value)</i>
+<i class="del">-  unless value.is_a?(String)</i>
+<i class="add">+  unless value</i>
+<i class="ctx">     raise(Error, &quot;GET /blobs: entry #{key.inspect} has no modified_at, cannot resolve the conflict&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   digits = value[/\.(\d+)(?=Z|[+-]\d{2}:?\d{2}\z)/, 1]&amp;.length || 0</i>
+<i class="ctx">   [Time.iso8601(value), digits]</i>
+<i class="ctx"> rescue ArgumentError =&gt; e</i>
+<i class="ctx">   raise(Error, &quot;GET /blobs: entry #{key.inspect} has malformed modified_at #{value.inspect}: #{e.message}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api.open</code> <span class="muted">— выжило 6 из 21</span></h4><pre><i class="ctx">@@ -1,10 +1,10 @@</i>
+<i class="ctx"> def self.open(base_url)</i>
+<i class="ctx">   api = new(base_url)</i>
+<i class="del">-  api.connect</i>
+<i class="add">+  nil</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     yield(api)</i>
+<i class="ctx">   ensure</i>
+<i class="ctx">     api.close</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::SyncState#keys</code> <span class="muted">— выжило 5 из 8</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def keys</i>
+<i class="del">-  @files.keys</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Store#flush_to_disk</code> <span class="muted">— выжило 5 из 9</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def flush_to_disk(file)</i>
+<i class="del">-  file.fsync</i>
+<i class="add">+  nil</i>
+<i class="ctx"> rescue Errno::EINVAL, Errno::ENOTSUP, NotImplementedError</i>
+<i class="ctx">   nil</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Store#remove_stale_tmp_files</code> <span class="muted">— выжило 5 из 68</span></h4><pre><i class="ctx">@@ -1,14 +1,14 @@</i>
+<i class="ctx"> def remove_stale_tmp_files</i>
+<i class="ctx">   dir = File.join(@root, TMP_DIR)</i>
+<i class="ctx">   Dir.children(dir).count do |name|</i>
+<i class="ctx">     unless name.end_with?(TMP_SUFFIX)</i>
+<i class="del">-      next false</i>
+<i class="add">+      next true</i>
+<i class="ctx">     end</i>
+<i class="ctx">     File.delete(File.join(dir, name))</i>
+<i class="ctx">     true</i>
+<i class="ctx">   rescue SystemCallError</i>
+<i class="ctx">     false</i>
+<i class="ctx">   end</i>
+<i class="ctx"> rescue Errno::ENOENT, Errno::ENOTDIR</i>
+<i class="ctx">   0</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Pull#initialize</code> <span class="muted">— выжило 4 из 14</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="del">-def initialize(options, out: $stdout, err: $stderr)</i>
+<i class="add">+def initialize(options, out:, err: $stderr)</i>
+<i class="ctx">   @options = options</i>
+<i class="ctx">   @out = out</i>
+<i class="ctx">   @err = err</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Status#initialize</code> <span class="muted">— выжило 4 из 14</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="del">-def initialize(options, out: $stdout, err: $stderr)</i>
+<i class="add">+def initialize(options, out:, err: $stderr)</i>
+<i class="ctx">   @options = options</i>
+<i class="ctx">   @out = out</i>
+<i class="ctx">   @err = err</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Sync#upload</code> <span class="muted">— выжило 4 из 38</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def upload(api, key, local)</i>
+<i class="del">-  File.open(local.path, &quot;rb&quot;) { |file|</i>
+<i class="add">+  self.open(local.path, &quot;rb&quot;) { |file|</i>
+<i class="ctx">     Transfer.upload(api, key, file, file.stat.size, local.sha256)</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::TestSupport::FakeServer.listing</code> <span class="muted">— выжило 4 из 39</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def self.listing(*entries)</i>
+<i class="ctx">   JSON.generate(entries.map { |key, body|</i>
+<i class="del">-    { &quot;key&quot; =&gt; key, &quot;size&quot; =&gt; body.bytesize, &quot;sha256&quot; =&gt; Digest::SHA256.hexdigest(body), &quot;modified_at&quot; =&gt; &quot;2026-01-01T00:00:00Z&quot; }</i>
+<i class="add">+    { &quot;key&quot; =&gt; key, &quot;size&quot; =&gt; body.bytesize, &quot;sha256&quot; =&gt; Digest::SHA256.hexdigest(body), &quot;&quot; =&gt; &quot;2026-01-01T00:00:00Z&quot; }</i>
+<i class="ctx">   })</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::TestSupport::FakeServer#refuse_connections</code> <span class="muted">— выжило 3 из 15</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def refuse_connections</i>
+<i class="del">-  unless @socket.closed?</i>
+<i class="add">+  unless nil</i>
+<i class="ctx">     @socket.close</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Status#summary_line</code> <span class="muted">— выжило 2 из 40</span></h4><pre><i class="ctx">@@ -1,12 +1,12 @@</i>
+<i class="ctx"> def summary_line(summary)</i>
+<i class="ctx">   if summary.in_sync?</i>
+<i class="ctx">     &quot;status: in sync, #{summary.unchanged} unchanged, nothing to upload or download (dry run, nothing changed)&quot;</i>
+<i class="ctx">   else</i>
+<i class="ctx">     failed = if summary.failed.zero?</i>
+<i class="del">-      &quot;&quot;</i>
+<i class="add">+      nil</i>
+<i class="ctx">     else</i>
+<i class="ctx">       &quot;#{summary.failed} failed (not compared), &quot;</i>
+<i class="ctx">     end</i>
+<i class="ctx">     &quot;status: #{failed}#{summary.to_upload} to upload (#{summary.local_only} only local), &quot; &quot;#{summary.to_download} to download (#{summary.remote_only} only on server), &quot; &quot;#{summary.differing} differing on both sides, #{summary.unchanged} unchanged, &quot; &quot;#{summary.total} files total (dry run, nothing changed)&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::SyncState#initialize</code> <span class="muted">— выжило 2 из 24</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def initialize(root)</i>
+<i class="ctx">   @dir = File.join(root, STATE_DIR)</i>
+<i class="ctx">   @path = File.join(@dir, FILE_NAME)</i>
+<i class="del">-  @files = {}</i>
+<i class="add">+  @files = nil</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Failures#add</code> <span class="muted">— выжило 1 из 32</span></h4><pre><i class="ctx">@@ -1,4 +1,4 @@</i>
+<i class="ctx"> def add(key, reason)</i>
+<i class="ctx">   @list &lt;&lt; Failure.new(key, reason)</i>
+<i class="del">-  @err.puts(&quot;syncbox: failed #{self.class.display_key(key)}: #{reason}&quot;)</i>
+<i class="add">+  @err.puts(&quot;syncbox: failed #{key}: #{reason}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Store#cached_digest</code> <span class="muted">— выжило 1 из 34</span></h4><pre><i class="ctx">@@ -1,8 +1,6 @@</i>
+<i class="ctx"> def cached_digest(key, stat)</i>
+<i class="del">-  @digests_lock.synchronize {</i>
+<i class="del">-    entry = @digests[key]</i>
+<i class="del">-    if entry&amp;.matches?(stat)</i>
+<i class="del">-      entry.sha256</i>
+<i class="del">-    end</i>
+<i class="del">-  }</i>
+<i class="add">+  entry = @digests[key]</i>
+<i class="add">+  if entry&amp;.matches?(stat)</i>
+<i class="add">+    entry.sha256</i>
+<i class="add">+  end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Store#initialize</code> <span class="muted">— выжило 1 из 19</span></h4><pre><i class="ctx">@@ -1,6 +1,6 @@</i>
+<i class="ctx"> def initialize(root)</i>
+<i class="del">-  @root = File.expand_path(root)</i>
+<i class="add">+  @root = root</i>
+<i class="ctx">   @digests = {}</i>
+<i class="ctx">   @digests_lock = Mutex.new</i>
+<i class="ctx">   remove_stale_tmp_files</i>
+<i class="ctx"> end</i></pre></details><details><summary><b class="sw o"></b>Ruby 4.0.7 · Opus 5.5: по одному выжившему мутанту на каждый из 22 методов с выжившими</summary><h4><code>Syncbox::Client::SyncState#update</code> <span class="muted">— выжило 41 из 149</span></h4><pre><i class="ctx">@@ -1,20 +1,16 @@</i>
+<i class="ctx"> def update(server, files)</i>
+<i class="ctx">   if common(server) == files</i>
+<i class="ctx">     return</i>
+<i class="ctx">   end</i>
+<i class="ctx">   @servers = @servers.merge(server =&gt; files)</i>
+<i class="ctx">   state_dir = File.join(@dir, STATE_DIR)</i>
+<i class="ctx">   make_state_dir(state_dir)</i>
+<i class="ctx">   tmp = File.join(state_dir, &quot;#{FILE}.#{SecureRandom.hex(8)}.tmp&quot;)</i>
+<i class="ctx">   File.open(tmp, File::WRONLY | File::CREAT | File::EXCL) { |file|</i>
+<i class="ctx">     file.write(JSON.generate({ &quot;version&quot; =&gt; VERSION, &quot;servers&quot; =&gt; @servers }))</i>
+<i class="ctx">     file.fsync</i>
+<i class="ctx">   }</i>
+<i class="ctx">   File.rename(tmp, File.join(state_dir, FILE))</i>
+<i class="ctx"> rescue SystemCallError =&gt; e</i>
+<i class="ctx">   raise(Error, &quot;cannot write sync state #{STATE_DIR}/#{FILE}: #{e.class.new.message}&quot;)</i>
+<i class="del">-ensure</i>
+<i class="del">-  if tmp</i>
+<i class="del">-    FileUtils.rm_f(tmp)</i>
+<i class="del">-  end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Sync#transfer</code> <span class="muted">— выжило 35 из 120</span></h4><pre><i class="ctx">@@ -1,23 +1,23 @@</i>
+<i class="ctx"> def transfer(step, pull)</i>
+<i class="ctx">   case step.direction</i>
+<i class="ctx">   when :upload</i>
+<i class="del">-    stored = reading(step.file) {</i>
+<i class="add">+    stored = reading(nil) {</i>
+<i class="ctx">       step.file.open { |io|</i>
+<i class="ctx">         @remote.put(step.key, io)</i>
+<i class="ctx">       }</i>
+<i class="ctx">     }</i>
+<i class="ctx">     report(&quot;uploaded&quot;, step)</i>
+<i class="ctx">     stored || step.sha256 || reading(step.file) {</i>
+<i class="ctx">       step.file.sha256</i>
+<i class="ctx">     }</i>
+<i class="ctx">   when :download</i>
+<i class="ctx">     pull.download(step.blob).tap {</i>
+<i class="ctx">       report(&quot;downloaded&quot;, step)</i>
+<i class="ctx">     }</i>
+<i class="ctx">   else</i>
+<i class="ctx">     step.sha256</i>
+<i class="ctx">   end</i>
+<i class="ctx"> rescue Remote::NotFound</i>
+<i class="ctx">   @err.puts(&quot;syncbox: skipping #{step.key}: deleted from the server meanwhile&quot;)</i>
+<i class="ctx">   nil</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Pull#make_parents</code> <span class="muted">— выжило 28 из 90</span></h4><pre><i class="ctx">@@ -1,14 +1,14 @@</i>
+<i class="ctx"> def make_parents(key)</i>
+<i class="ctx">   segments = key.split(&quot;/&quot;)[...-1]</i>
+<i class="ctx">   path = @dir</i>
+<i class="del">-  segments.each_with_index do |segment, i|</i>
+<i class="add">+  segments.each do |segment, i|</i>
+<i class="ctx">     path = File.join(path, segment)</i>
+<i class="ctx">     Dir.mkdir(path)</i>
+<i class="ctx">   rescue Errno::EEXIST</i>
+<i class="ctx">     if File.lstat(path).directory?</i>
+<i class="ctx">       next</i>
+<i class="ctx">     end</i>
+<i class="ctx">     raise(Error, &quot;cannot write #{key}: #{segments[..i].join(&quot;/&quot;)} is not a directory&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   path</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Remote#describe</code> <span class="muted">— выжило 26 из 75</span></h4><pre><i class="ctx">@@ -1,19 +1,19 @@</i>
+<i class="ctx"> def describe(error)</i>
+<i class="del">-  detail = error.message[CONNECT_FAILED, 1] || error.message</i>
+<i class="add">+  detail = error.message[CONNECT_FAILED, 1]</i>
+<i class="ctx">   case error</i>
+<i class="ctx">   when Net::OpenTimeout</i>
+<i class="ctx">     &quot;could not connect within #{@http.open_timeout}s&quot;</i>
+<i class="ctx">   when Net::ReadTimeout</i>
+<i class="ctx">     &quot;no response within #{@http.read_timeout}s&quot;</i>
+<i class="ctx">   when Net::WriteTimeout</i>
+<i class="ctx">     &quot;could not send the request within #{@http.write_timeout}s&quot;</i>
+<i class="ctx">   when SocketError</i>
+<i class="ctx">     &quot;cannot resolve host name #{@url.host} (#{detail})&quot;</i>
+<i class="ctx">   when SystemCallError</i>
+<i class="ctx">     error.class.new.message.downcase</i>
+<i class="ctx">   when EOFError</i>
+<i class="ctx">     &quot;the server closed the connection&quot;</i>
+<i class="ctx">   else</i>
+<i class="ctx">     detail</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::SyncState.parse</code> <span class="muted">— выжило 24 из 137</span></h4><pre><i class="ctx">@@ -1,16 +1,16 @@</i>
+<i class="ctx"> def self.parse(json)</i>
+<i class="ctx">   state = JSON.parse(json)</i>
+<i class="del">-  if state.is_a?(Hash) &amp;&amp; state[&quot;version&quot;] == VERSION</i>
+<i class="add">+  if state.instance_of?(Hash) &amp;&amp; state[&quot;version&quot;] == VERSION</i>
+<i class="ctx">     servers = state[&quot;servers&quot;]</i>
+<i class="ctx">   end</i>
+<i class="ctx">   valid = servers.is_a?(Hash) &amp;&amp; servers.each_value.all? { |files|</i>
+<i class="ctx">     files.is_a?(Hash) &amp;&amp; files.all? { |key, sha256|</i>
+<i class="ctx">       key.is_a?(String) &amp;&amp; sha256.is_a?(String) &amp;&amp; sha256.match?(SHA256)</i>
+<i class="ctx">     }</i>
+<i class="ctx">   }</i>
+<i class="ctx">   if valid</i>
+<i class="ctx">     servers</i>
+<i class="ctx">   end</i>
+<i class="ctx"> rescue JSON::ParserError</i>
+<i class="ctx">   nil</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Remote#parse_list</code> <span class="muted">— выжило 19 из 116</span></h4><pre><i class="ctx">@@ -1,11 +1,11 @@</i>
+<i class="ctx"> def parse_list(body)</i>
+<i class="ctx">   blobs = JSON.parse(body)</i>
+<i class="del">-  unless blobs.is_a?(Array) &amp;&amp; blobs.all?(Hash)</i>
+<i class="add">+  unless blobs.is_a?(Array)</i>
+<i class="ctx">     raise(KeyError)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   blobs.to_h { |blob|</i>
+<i class="ctx">     [blob.fetch(&quot;key&quot;), Blob.new(key: blob.fetch(&quot;key&quot;), size: blob.fetch(&quot;size&quot;), sha256: blob.fetch(&quot;sha256&quot;), modified_at: blob[&quot;modified_at&quot;])]</i>
+<i class="ctx">   }</i>
+<i class="ctx"> rescue JSON::ParserError, KeyError</i>
+<i class="ctx">   raise(Error, &quot;cannot list blobs: unexpected response from server #{@url}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::Storage#put</code> <span class="muted">— выжило 17 из 128</span></h4><pre><i class="ctx">@@ -1,27 +1,25 @@</i>
+<i class="ctx"> def put(key, input)</i>
+<i class="ctx">   path = blob_path(key)</i>
+<i class="del">-  if path.bytesize &gt;= PATH_MAX</i>
+<i class="del">-    raise(InvalidKey)</i>
+<i class="del">-  end</i>
+<i class="add">+  nil</i>
+<i class="ctx">   FileUtils.mkdir_p(@tmp_dir)</i>
+<i class="ctx">   FileUtils.mkdir_p(@blobs_dir)</i>
+<i class="ctx">   tmp = File.join(@tmp_dir, SecureRandom.hex(16))</i>
+<i class="ctx">   (digest, size) = write_tmp(tmp, input)</i>
+<i class="ctx">   parent = File.dirname(path)</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     check_resolves_inside!(parent)</i>
+<i class="ctx">     make_parents(parent)</i>
+<i class="ctx">     check_resolves_inside!(parent)</i>
+<i class="ctx">     File.rename(tmp, path)</i>
+<i class="ctx">   rescue Errno::ENOENT</i>
+<i class="ctx">     retry</i>
+<i class="ctx">   rescue *KEY_ERRORS</i>
+<i class="ctx">     raise(InvalidKey)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   { key:, sha256: digest, size: }</i>
+<i class="ctx"> ensure</i>
+<i class="ctx">   if tmp</i>
+<i class="ctx">     FileUtils.rm_f(tmp)</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Remote#initialize</code> <span class="muted">— выжило 14 из 93</span></h4><pre><i class="ctx">@@ -1,12 +1,12 @@</i>
+<i class="ctx"> def initialize(url, open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT, write_timeout: WRITE_TIMEOUT)</i>
+<i class="ctx">   @url = url</i>
+<i class="ctx">   @base_path = url.path.sub(%r{/+\z}, &quot;&quot;)</i>
+<i class="ctx">   @read_timeout = read_timeout</i>
+<i class="ctx">   @http = Net::HTTP.new(url.host, url.port)</i>
+<i class="del">-  @http.use_ssl=url.scheme == &quot;https&quot;</i>
+<i class="add">+  nil</i>
+<i class="ctx">   @http.open_timeout=open_timeout</i>
+<i class="ctx">   @http.read_timeout=read_timeout</i>
+<i class="ctx">   @http.write_timeout=write_timeout</i>
+<i class="ctx">   @http.max_retries=0</i>
+<i class="ctx">   @http.ignore_eof=false</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Failures#include?</code> <span class="muted">— выжило 12 из 36</span></h4><pre><i class="ctx">@@ -1,5 +1,3 @@</i>
+<i class="ctx"> def include?(key)</i>
+<i class="del">-  @failed.each_key.any? { |failed|</i>
+<i class="del">-    key == failed || key.start_with?(&quot;#{failed}/&quot;)</i>
+<i class="del">-  }</i>
+<i class="add">+  @failed.each_key.any?</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#delete_blob</code> <span class="muted">— выжило 7 из 83</span></h4><pre><i class="ctx">@@ -1,12 +1,12 @@</i>
+<i class="ctx"> def delete_blob(raw_key)</i>
+<i class="ctx">   key = decode_path(raw_key)</i>
+<i class="ctx">   unless key</i>
+<i class="del">-    return text(400, &quot;invalid key\n&quot;)</i>
+<i class="add">+    return text(400, nil)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   unless @storage.delete(key)</i>
+<i class="ctx">     return text(404, &quot;not found\n&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   [204, {}, []]</i>
+<i class="ctx"> rescue Storage::InvalidKey</i>
+<i class="ctx">   text(400, &quot;invalid key\n&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Config#initialize</code> <span class="muted">— выжило 6 из 61</span></h4><pre><i class="ctx">@@ -1,11 +1,11 @@</i>
+<i class="ctx"> def initialize(command:, dir:, server:)</i>
+<i class="del">-  if server.nil? || server.empty?</i>
+<i class="add">+  if server.nil?</i>
+<i class="ctx">     raise(Error, &quot;server URL is required: pass --server &lt;url&gt; or set SYNCBOX_SERVER&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if dir.empty?</i>
+<i class="ctx">     raise(Error, &quot;directory must not be empty&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   @command = command</i>
+<i class="ctx">   @dir = File.expand_path(dir)</i>
+<i class="ctx">   @server = parse_server(server)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#text</code> <span class="muted">— выжило 5 из 17</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def text(status, body)</i>
+<i class="del">-  [status, TEXT.dup, [body]]</i>
+<i class="add">+  [status, TEXT.dup, nil]</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Push#up_to_date?</code> <span class="muted">— выжило 3 из 39</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def up_to_date?(file, blob)</i>
+<i class="del">-  blob &amp;&amp; blob.size == file.size &amp;&amp; blob.sha256 == reading(file) {</i>
+<i class="add">+  blob &amp;&amp; blob.sha256 == reading(file) {</i>
+<i class="ctx">     file.sha256</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Status#same?</code> <span class="muted">— выжило 3 из 34</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def same?(file, blob)</i>
+<i class="del">-  blob.size == file.size &amp;&amp; blob.sha256 == reading(file) {</i>
+<i class="add">+  blob.sha256 == reading(file) {</i>
+<i class="ctx">     file.sha256</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Sync#server_time</code> <span class="muted">— выжило 3 из 61</span></h4><pre><i class="ctx">@@ -1,6 +1,6 @@</i>
+<i class="ctx"> def server_time(blob)</i>
+<i class="ctx">   time = Time.iso8601(blob.modified_at)</i>
+<i class="del">-  [time, blob.modified_at[/T[^.,]*[.,](\d+)/, 1].to_s.size]</i>
+<i class="add">+  [time, blob.modified_at[/T[^.,]+[.,](\d+)/, 1].to_s.size]</i>
+<i class="ctx"> rescue ArgumentError, TypeError</i>
+<i class="ctx">   raise(Error, &quot;server listed an invalid modified_at for #{blob.key}: #{blob.modified_at.inspect}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#healthz</code> <span class="muted">— выжило 3 из 51</span></h4><pre><i class="ctx">@@ -1,6 +1,6 @@</i>
+<i class="ctx"> def healthz(env)</i>
+<i class="del">-  unless [&quot;GET&quot;, &quot;HEAD&quot;].include?(env[&quot;REQUEST_METHOD&quot;])</i>
+<i class="add">+  unless [&quot;GET&quot;, &quot;HEAD&quot;].include?(env.fetch(&quot;REQUEST_METHOD&quot;))</i>
+<i class="ctx">     return method_not_allowed(&quot;GET, HEAD&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   text(200, &quot;ok\n&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Pull#run</code> <span class="muted">— выжило 2 из 151</span></h4><pre><i class="ctx">@@ -1,29 +1,29 @@</i>
+<i class="ctx"> def run</i>
+<i class="ctx">   unless File.directory?(@dir)</i>
+<i class="ctx">     raise(Error, &quot;not a directory: #{@dir}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   failures = Failures.new(&quot;pull&quot;)</i>
+<i class="ctx">   blobs = self.class.check_keys(@remote.list.values.sort_by(&amp;:key))</i>
+<i class="ctx">   changed = []</i>
+<i class="ctx">   up_to_date = 0</i>
+<i class="ctx">   blobs.each { |blob|</i>
+<i class="del">-    failures.attempt(blob.key) {</i>
+<i class="add">+    failures.attempt(nil) {</i>
+<i class="ctx">       case state(blob)</i>
+<i class="ctx">       when :changed</i>
+<i class="ctx">         changed &lt;&lt; blob</i>
+<i class="ctx">       when :up_to_date</i>
+<i class="ctx">         up_to_date += 1</i>
+<i class="ctx">       end</i>
+<i class="ctx">     }</i>
+<i class="ctx">   }</i>
+<i class="ctx">   downloaded = 0</i>
+<i class="ctx">   failures.each(changed) do |blob|</i>
+<i class="ctx">     download(blob)</i>
+<i class="ctx">     downloaded += 1</i>
+<i class="ctx">     @out.puts(&quot;downloaded #{blob.key}&quot;)</i>
+<i class="ctx">   rescue Remote::NotFound</i>
+<i class="ctx">     @err.puts(&quot;syncbox: skipping #{blob.key}: deleted from the server meanwhile&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   @out.puts(&quot;pull: #{downloaded} downloaded, #{up_to_date} up to date#{failures.summary}&quot;)</i>
+<i class="ctx">   failures.check!</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#initialize</code> <span class="muted">— выжило 2 из 17</span></h4><pre><i class="ctx">@@ -1,4 +1,4 @@</i>
+<i class="ctx"> def initialize(config, storage: Storage.new(config.data_dir))</i>
+<i class="del">-  @config = config</i>
+<i class="add">+  @config = nil</i>
+<i class="ctx">   @storage = storage</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Failures#initialize</code> <span class="muted">— выжило 1 из 13</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def initialize(command)</i>
+<i class="ctx">   @command = command</i>
+<i class="ctx">   @failed = {}</i>
+<i class="del">-  @not_attempted = 0</i>
+<i class="add">+  @not_attempted = -1</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Failures#summary</code> <span class="muted">— выжило 1 из 51</span></h4><pre><i class="ctx">@@ -1,12 +1,12 @@</i>
+<i class="ctx"> def summary</i>
+<i class="ctx">   counts = []</i>
+<i class="del">-  unless @failed.empty?</i>
+<i class="add">+  unless self.empty?</i>
+<i class="ctx">     counts &lt;&lt; &quot;#{@failed.size} failed&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if @not_attempted.positive?</i>
+<i class="ctx">     counts &lt;&lt; &quot;#{@not_attempted} not attempted&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx">   counts.map { |count|</i>
+<i class="ctx">     &quot;, #{count}&quot;</i>
+<i class="ctx">   }.join</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#json</code> <span class="muted">— выжило 1 из 22</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def json(status, data)</i>
+<i class="del">-  [status, JSON_TYPE.dup, [JSON.generate(data)]]</i>
+<i class="add">+  [status, JSON_TYPE, [JSON.generate(data)]]</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#list_blobs</code> <span class="muted">— выжило 1 из 52</span></h4><pre><i class="ctx">@@ -1,6 +1,6 @@</i>
+<i class="ctx"> def list_blobs(env)</i>
+<i class="del">-  unless [&quot;GET&quot;, &quot;HEAD&quot;].include?(env[&quot;REQUEST_METHOD&quot;])</i>
+<i class="add">+  unless [&quot;GET&quot;, &quot;HEAD&quot;].include?(env.fetch(&quot;REQUEST_METHOD&quot;))</i>
+<i class="ctx">     return method_not_allowed(&quot;GET, HEAD&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   json(200, @storage.list)</i>
+<i class="ctx"> end</i>
+<i class="ctx">Uncovered mutations detected, exiting nonzero!</i></pre></details><details><summary><b class="sw f"></b>Ruby 4.0.7 · Fable 5.1: по одному выжившему мутанту на каждый из 26 методов с выжившими</summary><h4><code>Syncbox::Server::Runner#run</code> <span class="muted">— выжило 82 из 83</span></h4><pre><i class="ctx">@@ -1,17 +1,3 @@</i>
+<i class="ctx"> def run</i>
+<i class="del">-  config = Config.parse(@argv, env: @env)</i>
+<i class="del">-  prepare_data_dir(config.data_dir)</i>
+<i class="del">-  store = prepare_store(config.data_dir)</i>
+<i class="del">-  serve(config, store)</i>
+<i class="del">-  EXIT_OK</i>
+<i class="del">-rescue Config::HelpRequested =&gt; e</i>
+<i class="del">-  @out.puts(e.message)</i>
+<i class="del">-  EXIT_OK</i>
+<i class="del">-rescue Config::Error =&gt; e</i>
+<i class="del">-  @err.puts(&quot;syncbox-server: #{e.message}&quot;)</i>
+<i class="del">-  @err.puts(Config.usage)</i>
+<i class="del">-  EXIT_USAGE</i>
+<i class="del">-rescue SystemCallError, BlobStore::Error =&gt; e</i>
+<i class="del">-  @err.puts(&quot;syncbox-server: #{e.message}&quot;)</i>
+<i class="del">-  EXIT_FAILURE</i>
+<i class="add">+  raise</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Options.build_parser</code> <span class="muted">— выжило 70 из 157</span></h4><pre><i class="ctx">@@ -1,21 +1,21 @@</i>
+<i class="ctx"> def self.build_parser(options, program_name)</i>
+<i class="ctx">   OptionParser.new { |o|</i>
+<i class="del">-    o.program_name=program_name</i>
+<i class="add">+    nil</i>
+<i class="ctx">     o.banner=&quot;Usage: #{program_name} &lt;#{COMMANDS.join(&quot;|&quot;)}&gt; &lt;dir&gt; --server &lt;url&gt;&quot;</i>
+<i class="ctx">     o.separator(&quot;&quot;)</i>
+<i class="ctx">     o.separator(&quot;Commands:&quot;)</i>
+<i class="ctx">     o.separator(&quot;  push     Upload files that are missing on the server or differ from it (by SHA-256)&quot;)</i>
+<i class="ctx">     o.separator(&quot;  pull     Download files that are missing locally or differ from the server (by SHA-256)&quot;)</i>
+<i class="ctx">     o.separator(&quot;  sync     Both ways: upload local-only/changed files, download server-only/changed blobs;&quot;)</i>
+<i class="ctx">     o.separator(&quot;           a file changed on both sides since the last sync goes to the fresher mtime, local on a tie&quot;)</i>
+<i class="ctx">     o.separator(&quot;  status   Dry run: show what push and pull would do, changing nothing on either side&quot;)</i>
+<i class="ctx">     o.separator(&quot;&quot;)</i>
+<i class="ctx">     o.separator(&quot;Options:&quot;)</i>
+<i class="ctx">     o.on(&quot;--server URL&quot;, &quot;Base URL of the Syncbox server (required; env SYNCBOX_SERVER)&quot;) { |v|</i>
+<i class="ctx">       options[:server] = v</i>
+<i class="ctx">     }</i>
+<i class="ctx">     o.on(&quot;-h&quot;, &quot;--help&quot;, &quot;Show this help&quot;) {</i>
+<i class="ctx">       options[:help] = true</i>
+<i class="ctx">     }</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api#describe</code> <span class="muted">— выжило 59 из 106</span></h4><pre><i class="ctx">@@ -1,31 +1,31 @@</i>
+<i class="ctx"> def describe(error)</i>
+<i class="ctx">   where = &quot;#{@base_url.host}:#{@base_url.port}&quot;</i>
+<i class="ctx">   case error</i>
+<i class="ctx">   when Net::OpenTimeout</i>
+<i class="ctx">     &quot;connection to #{where} timed out after #{@open_timeout}s&quot;</i>
+<i class="ctx">   when Net::ReadTimeout</i>
+<i class="ctx">     &quot;no response from #{where} within #{@read_timeout}s (read timeout)&quot;</i>
+<i class="ctx">   when Net::WriteTimeout</i>
+<i class="del">-    &quot;request to #{where} could not be sent within #{@write_timeout}s (write timeout)&quot;</i>
+<i class="add">+    nil</i>
+<i class="ctx">   when Timeout::Error</i>
+<i class="ctx">     &quot;timed out (#{error.message})&quot;</i>
+<i class="ctx">   when SocketError</i>
+<i class="ctx">     &quot;cannot resolve host name #{@base_url.host.inspect} (#{os_error_text(error)})&quot;</i>
+<i class="ctx">   when Errno::ECONNREFUSED</i>
+<i class="ctx">     &quot;connection refused by #{where} (is the server running there?)&quot;</i>
+<i class="ctx">   when Errno::ECONNRESET</i>
+<i class="ctx">     &quot;connection reset by #{where}&quot;</i>
+<i class="ctx">   when Errno::EPIPE</i>
+<i class="ctx">     &quot;connection closed by #{where} while the request was being sent&quot;</i>
+<i class="ctx">   when Errno::EHOSTUNREACH, Errno::ENETUNREACH</i>
+<i class="ctx">     &quot;#{where} is not reachable (#{os_error_text(error)})&quot;</i>
+<i class="ctx">   when EOFError</i>
+<i class="ctx">     &quot;connection closed by #{where} before the response was complete&quot;</i>
+<i class="ctx">   when OpenSSL::SSL::SSLError</i>
+<i class="ctx">     &quot;TLS handshake with #{where} failed (#{error.message})&quot;</i>
+<i class="ctx">   when SystemCallError</i>
+<i class="ctx">     os_error_text(error)</i>
+<i class="ctx">   else</i>
+<i class="ctx">     &quot;#{error.class}: #{error.message}&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api#parse_put</code> <span class="muted">— выжило 59 из 139</span></h4><pre><i class="ctx">@@ -1,7 +1,7 @@</i>
+<i class="ctx"> def parse_put(path, body)</i>
+<i class="del">-  data = parse_json(path, body)</i>
+<i class="add">+  data = parse_json(nil, body)</i>
+<i class="ctx">   unless data.is_a?(Hash) &amp;&amp; data[&quot;key&quot;].is_a?(String) &amp;&amp; data[&quot;sha256&quot;].to_s.match?(SHA256_HEX)</i>
+<i class="ctx">     raise(ProtocolError, &quot;PUT #{path}: malformed response #{body.to_s[0, 200].inspect}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   PutResult.new(key: data[&quot;key&quot;], size: data[&quot;size&quot;], sha256: data[&quot;sha256&quot;])</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api#parse_list</code> <span class="muted">— выжило 46 из 182</span></h4><pre><i class="ctx">@@ -1,12 +1,12 @@</i>
+<i class="ctx"> def parse_list(path, body)</i>
+<i class="del">-  data = parse_json(path, body)</i>
+<i class="add">+  data = parse_json(nil, body)</i>
+<i class="ctx">   unless data.is_a?(Array)</i>
+<i class="ctx">     raise(ProtocolError, &quot;GET #{path}: expected a JSON array, got #{data.class}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   data.map { |item|</i>
+<i class="ctx">     unless item.is_a?(Hash) &amp;&amp; item[&quot;key&quot;].is_a?(String) &amp;&amp; item[&quot;sha256&quot;].to_s.match?(SHA256_HEX)</i>
+<i class="ctx">       raise(ProtocolError, &quot;GET #{path}: malformed list entry #{item.inspect[0, 200]}&quot;)</i>
+<i class="ctx">     end</i>
+<i class="ctx">     RemoteBlob.new(key: item[&quot;key&quot;], size: item[&quot;size&quot;], sha256: item[&quot;sha256&quot;], modified_at: item[&quot;modified_at&quot;])</i>
+<i class="ctx">   }.sort_by(&amp;:key)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::BlobStore#resolve_on_disk</code> <span class="muted">— выжило 32 из 93</span></h4><pre><i class="ctx">@@ -1,20 +1,20 @@</i>
+<i class="ctx"> def resolve_on_disk(path)</i>
+<i class="del">-  attempts = 0</i>
+<i class="add">+  attempts = 1</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     missing = []</i>
+<i class="ctx">     existing = path</i>
+<i class="ctx">     until File.exist?(existing)</i>
+<i class="ctx">       missing.unshift(File.basename(existing))</i>
+<i class="ctx">       existing = File.dirname(existing)</i>
+<i class="ctx">     end</i>
+<i class="ctx">     File.join(File.realpath(existing), *missing)</i>
+<i class="ctx">   rescue Errno::ENOENT</i>
+<i class="ctx">     if (attempts += 1) &gt; RESOLVE_RETRIES</i>
+<i class="ctx">       raise(InvalidKey, &quot;key cannot be resolved on disk: #{path}&quot;)</i>
+<i class="ctx">     end</i>
+<i class="ctx">     retry</i>
+<i class="ctx">   rescue SystemCallError =&gt; e</i>
+<i class="ctx">     raise(InvalidKey, &quot;key cannot be resolved on disk: #{e.message}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client.run</code> <span class="muted">— выжило 27 из 28</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="del">-def self.run(argv, env: ENV, out: $stdout, err: $stderr)</i>
+<i class="add">+def self.run(argv, env: nil, out: $stdout, err: $stderr)</i>
+<i class="ctx">   Runner.new(argv, env:, out:, err:).run</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Options.parse_server</code> <span class="muted">— выжило 24 из 134</span></h4><pre><i class="ctx">@@ -1,15 +1,15 @@</i>
+<i class="ctx"> def self.parse_server(raw)</i>
+<i class="ctx">   uri = begin</i>
+<i class="del">-    URI.parse(raw.to_s.strip)</i>
+<i class="add">+    URI.parse(raw.strip)</i>
+<i class="ctx">   rescue URI::InvalidURIError =&gt; e</i>
+<i class="ctx">     raise(Error, &quot;invalid server URL #{raw.inspect}: #{e.message}; expected http://host[:port] or https://host[:port]&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   unless uri.is_a?(URI::HTTP) &amp;&amp; SCHEMES.include?(uri.scheme) &amp;&amp; uri.host &amp;&amp; !uri.host.empty?</i>
+<i class="ctx">     raise(Error, &quot;invalid server URL #{raw.inspect}: expected http://host[:port] or https://host[:port]&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if uri.query || uri.fragment</i>
+<i class="ctx">     raise(Error, &quot;invalid server URL #{raw.inspect}: query and fragment are not allowed&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   uri.path=uri.path.sub(%r{/+\z}, &quot;&quot;)</i>
+<i class="ctx">   uri</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::LocalTree#verify_ancestors</code> <span class="muted">— выжило 20 из 122</span></h4><pre><i class="ctx">@@ -1,25 +1,25 @@</i>
+<i class="ctx"> def verify_ancestors(dir, key)</i>
+<i class="ctx">   chain = []</i>
+<i class="ctx">   current = dir</i>
+<i class="del">-  while current != @root &amp;&amp; !@verified_dirs.include?(current)</i>
+<i class="add">+  while current != @root</i>
+<i class="ctx">     chain.unshift(current)</i>
+<i class="ctx">     current = File.dirname(current)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   chain.each { |candidate|</i>
+<i class="ctx">     stat = begin</i>
+<i class="ctx">       File.lstat(candidate)</i>
+<i class="ctx">     rescue Errno::ENOENT</i>
+<i class="ctx">       return</i>
+<i class="ctx">     end</i>
+<i class="ctx">     if stat.symlink?</i>
+<i class="ctx">       raise(Error, &quot;#{key}: a symbolic link is in the way (#{relative(candidate)}); links are not followed&quot;)</i>
+<i class="ctx">     else</i>
+<i class="ctx">       if !stat.directory?</i>
+<i class="ctx">         raise(Error, &quot;#{key}: #{relative(candidate)} is in the way and is not a directory&quot;)</i>
+<i class="ctx">       end</i>
+<i class="ctx">     end</i>
+<i class="ctx">     @verified_dirs &lt;&lt; candidate</i>
+<i class="ctx">   }</i>
+<i class="ctx"> rescue SystemCallError =&gt; e</i>
+<i class="ctx">   raise(Error, &quot;#{key}: #{e.message}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Transfer#download</code> <span class="muted">— выжило 18 из 133</span></h4><pre><i class="ctx">@@ -1,23 +1,23 @@</i>
+<i class="ctx"> def download(tree, blob, local, reason)</i>
+<i class="ctx">   target = tree.path_for(blob.key)</i>
+<i class="ctx">   staging = nil</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     FileUtils.mkdir_p(File.dirname(target))</i>
+<i class="ctx">     staging = File.join(File.dirname(target), &quot;#{STAGING_PREFIX}#{SecureRandom.hex(8)}&quot;)</i>
+<i class="ctx">     result = @api.get(blob.key, staging)</i>
+<i class="ctx">     verify(blob, result)</i>
+<i class="del">-    if local&amp;.mode</i>
+<i class="add">+    if local</i>
+<i class="ctx">       File.chmod(local.mode, staging)</i>
+<i class="ctx">     end</i>
+<i class="ctx">     File.rename(staging, target)</i>
+<i class="ctx">   rescue SystemCallError =&gt; e</i>
+<i class="ctx">     raise(Error, &quot;#{blob.key}: #{e.message}&quot;)</i>
+<i class="ctx">   ensure</i>
+<i class="ctx">     if staging</i>
+<i class="ctx">       discard(staging)</i>
+<i class="ctx">     end</i>
+<i class="ctx">   end</i>
+<i class="ctx">   @out.puts(&quot;downloaded #{blob.key} (#{reason}, #{result.size} bytes)&quot;)</i>
+<i class="ctx">   result</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::SyncState.load</code> <span class="muted">— выжило 16 из 122</span></h4><pre><i class="ctx">@@ -1,11 +1,11 @@</i>
+<i class="ctx"> def self.load(dir, server:)</i>
+<i class="del">-  path = File.join(File.expand_path(dir), DIR, FILE)</i>
+<i class="add">+  path = File.join(dir, DIR, FILE)</i>
+<i class="ctx">   document = read_document(path)</i>
+<i class="ctx">   files = document.dig(&quot;servers&quot;, server, &quot;files&quot;) || {}</i>
+<i class="ctx">   unless files.is_a?(Hash) &amp;&amp; files.all? { |k, v|</i>
+<i class="ctx">     k.is_a?(String) &amp;&amp; v.is_a?(String) &amp;&amp; v.match?(SHA256_HEX)</i>
+<i class="ctx">   }</i>
+<i class="ctx">     raise(Error, &quot;#{path}: malformed entry for server #{server}; delete the file to reset the sync state&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   new(path, server, document, files.dup)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::Config.usage</code> <span class="muted">— выжило 16 из 17</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="del">-def self.usage(program_name: &quot;syncbox-server&quot;)</i>
+<i class="add">+def self.usage(program_name:)</i>
+<i class="ctx">   build_parser({}, program_name).to_s</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api#parse_json</code> <span class="muted">— выжило 15 из 42</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def parse_json(path, body)</i>
+<i class="del">-  JSON.parse(body.to_s)</i>
+<i class="add">+  JSON.parse(body)</i>
+<i class="ctx"> rescue JSON::ParserError =&gt; e</i>
+<i class="ctx">   raise(ProtocolError, &quot;#{path}: response is not valid JSON (#{e.message[0, 100]})&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Options.parse</code> <span class="muted">— выжило 15 из 197</span></h4><pre><i class="ctx">@@ -1,31 +1,31 @@</i>
+<i class="del">-def self.parse(argv, env: ENV, program_name: &quot;syncbox&quot;)</i>
+<i class="add">+def self.parse(argv, env:, program_name: &quot;syncbox&quot;)</i>
+<i class="ctx">   options = {}</i>
+<i class="ctx">   parser = build_parser(options, program_name)</i>
+<i class="ctx"> </i>
+<i class="ctx">   begin</i>
+<i class="ctx">     positional = parser.parse(argv.dup)</i>
+<i class="ctx">   rescue OptionParser::ParseError =&gt; e</i>
+<i class="ctx">     raise(Error, e.message)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if options[:help]</i>
+<i class="ctx">     raise(HelpRequested, parser.to_s)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   (command, dir, *extra) = positional</i>
+<i class="ctx">   if command.nil?</i>
+<i class="ctx">     raise(Error, &quot;missing command (one of: #{COMMANDS.join(&quot;, &quot;)})&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   unless COMMANDS.include?(command)</i>
+<i class="ctx">     raise(Error, &quot;unknown command #{command.inspect} (expected one of: #{COMMANDS.join(&quot;, &quot;)})&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   if dir.nil?</i>
+<i class="ctx">     raise(Error, &quot;missing &lt;dir&gt; argument&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   unless extra.empty?</i>
+<i class="ctx">     raise(Error, &quot;unexpected argument(s): #{extra.join(&quot; &quot;)}&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   server = first_present(options[:server], env[&quot;SYNCBOX_SERVER&quot;])</i>
+<i class="ctx">   if server.nil?</i>
+<i class="ctx">     raise(Error, &quot;--server is required (or set SYNCBOX_SERVER)&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx">   new(command:, dir:, server: parse_server(server))</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Transfer#discard</code> <span class="muted">— выжило 11 из 24</span></h4><pre><i class="ctx">@@ -1,7 +1,7 @@</i>
+<i class="ctx"> def discard(staging)</i>
+<i class="ctx">   File.unlink(staging)</i>
+<i class="ctx"> rescue Errno::ENOENT</i>
+<i class="ctx">   nil</i>
+<i class="ctx"> rescue SystemCallError =&gt; e</i>
+<i class="del">-  @err.puts(&quot;syncbox: warning: cannot remove staging file #{staging}: #{e.message}&quot;)</i>
+<i class="add">+  nil</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Status#call</code> <span class="muted">— выжило 7 из 162</span></h4><pre><i class="ctx">@@ -1,24 +1,24 @@</i>
+<i class="ctx"> def call</i>
+<i class="ctx">   tree = LocalTree.new(@dir)</i>
+<i class="ctx">   failures = Failures.new(err: @err)</i>
+<i class="del">-  local = tree.scan(on_failure: failures.method(:record)) { |warning|</i>
+<i class="add">+  local = tree.scan(on_failure: failures.public_method(:record)) { |warning|</i>
+<i class="ctx">     @err.puts(&quot;syncbox: warning: #{warning}&quot;)</i>
+<i class="ctx">   }.to_h { |f|</i>
+<i class="ctx">     [f.key, f]</i>
+<i class="ctx">   }</i>
+<i class="ctx">   unscanned = failures.entries.map(&amp;:key)</i>
+<i class="ctx">   remote = @api.list.to_h { |blob|</i>
+<i class="ctx">     [blob.key, blob]</i>
+<i class="ctx">   }.reject { |key, _|</i>
+<i class="ctx">     unscanned.any? { |u|</i>
+<i class="ctx">       key == u || key.start_with?(&quot;#{u}/&quot;)</i>
+<i class="ctx">     }</i>
+<i class="ctx">   }</i>
+<i class="ctx">   report = compare(tree, local, remote)</i>
+<i class="ctx">   report.failed=failures.size</i>
+<i class="ctx">   print_report(report)</i>
+<i class="ctx">   failures.report(&quot;status&quot;, total: local.size + failures.size)</i>
+<i class="ctx">   report</i>
+<i class="ctx"> ensure</i>
+<i class="ctx">   @api.close</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::LocalTree#file_entry</code> <span class="muted">— выжило 6 из 113</span></h4><pre><i class="ctx">@@ -1,20 +1,20 @@</i>
+<i class="ctx"> def file_entry(key, path)</i>
+<i class="ctx">   digest = Digest::SHA256.new</i>
+<i class="ctx">   size = 0</i>
+<i class="ctx">   mode = nil</i>
+<i class="ctx">   mtime = nil</i>
+<i class="del">-  File.open(path, &quot;rb&quot;) { |file|</i>
+<i class="add">+  self.open(path, &quot;rb&quot;) { |file|</i>
+<i class="ctx">     stat = file.stat</i>
+<i class="ctx">     mode = stat.mode &amp; 4095</i>
+<i class="ctx">     mtime = stat.mtime</i>
+<i class="ctx">     while (chunk = file.read(CHUNK_SIZE))</i>
+<i class="ctx">       digest &lt;&lt; chunk</i>
+<i class="ctx">       size += chunk.bytesize</i>
+<i class="ctx">     end</i>
+<i class="ctx">   }</i>
+<i class="ctx">   LocalFile.new(key:, path:, size:, sha256: digest.hexdigest, mode:, mtime:)</i>
+<i class="ctx"> rescue SystemCallError =&gt; e</i>
+<i class="ctx">   failure = Error.new(&quot;cannot read #{key}: #{e.message}&quot;)</i>
+<i class="ctx">   failure.key=key</i>
+<i class="ctx">   raise(failure)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#method_not_allowed</code> <span class="muted">— выжило 5 из 22</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def method_not_allowed(allow)</i>
+<i class="del">-  json(405, { error: &quot;method not allowed&quot; }, &quot;allow&quot; =&gt; allow)</i>
+<i class="add">+  json(405, nil, &quot;allow&quot; =&gt; allow)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Api::HttpError#initialize</code> <span class="muted">— выжило 3 из 34</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def initialize(method, path, response)</i>
+<i class="del">-  @status = response.code.to_i</i>
+<i class="add">+  @status = Integer(response.code)</i>
+<i class="ctx">   @body = response.body.to_s</i>
+<i class="ctx">   super(&quot;server answered #{response.code} #{response.message} to #{method} #{path}#{detail}&quot;)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Failures#report</code> <span class="muted">— выжило 3 из 86</span></h4><pre><i class="ctx">@@ -1,17 +1,17 @@</i>
+<i class="ctx"> def report(command, total:, not_attempted: 0)</i>
+<i class="del">-  if empty? &amp;&amp; not_attempted.zero?</i>
+<i class="add">+  if empty?</i>
+<i class="ctx">     return</i>
+<i class="ctx">   end</i>
+<i class="ctx">   headline = &quot;#{command} #{if not_attempted.positive?</i>
+<i class="ctx">   &quot;aborted&quot;</i>
+<i class="ctx"> else</i>
+<i class="ctx">   &quot;incomplete&quot;</i>
+<i class="ctx"> end}: #{size} of #{total} file(s) failed&quot;</i>
+<i class="ctx">   if not_attempted.positive?</i>
+<i class="ctx">     headline += &quot;, #{not_attempted} not attempted&quot;</i>
+<i class="ctx">   end</i>
+<i class="ctx">   @err.puts(&quot;syncbox: #{headline}&quot;)</i>
+<i class="ctx">   @entries.each { |entry|</i>
+<i class="ctx">     @err.puts(&quot;syncbox:   #{entry.key}: #{entry.message}&quot;)</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#list_blobs</code> <span class="muted">— выжило 3 из 38</span></h4><pre><i class="ctx">@@ -1,8 +1,8 @@</i>
+<i class="ctx"> def list_blobs(method)</i>
+<i class="ctx">   case method</i>
+<i class="del">-  when &quot;GET&quot;, &quot;HEAD&quot;</i>
+<i class="add">+  when &quot;GET&quot;</i>
+<i class="ctx">     json(200, store.list.map(&amp;:to_h))</i>
+<i class="ctx">   else</i>
+<i class="ctx">     method_not_allowed(&quot;GET, HEAD&quot;)</i>
+<i class="ctx">   end</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::BlobStore#prepare</code> <span class="muted">— выжило 3 из 52</span></h4><pre><i class="ctx">@@ -1,10 +1,10 @@</i>
+<i class="ctx"> def prepare</i>
+<i class="ctx">   ensure_directories</i>
+<i class="ctx">   Dir.children(@staging_dir).count { |name|</i>
+<i class="del">-    unless STAGING_NAME.match?(name.b)</i>
+<i class="add">+    unless STAGING_NAME.match?(name)</i>
+<i class="ctx">       next false</i>
+<i class="ctx">     end</i>
+<i class="ctx">     discard(File.join(@staging_dir, name))</i>
+<i class="ctx">     true</i>
+<i class="ctx">   }</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::LocalTree#relative</code> <span class="muted">— выжило 2 из 24</span></h4><pre><i class="ctx">@@ -1,3 +1,3 @@</i>
+<i class="ctx"> def relative(path)</i>
+<i class="del">-  path.byteslice((@root.bytesize + 1)..).to_s</i>
+<i class="add">+  path.byteslice((@root.bytesize + 1)..)</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::Sync#download</code> <span class="muted">— выжило 1 из 38</span></h4><pre><i class="ctx">@@ -1,5 +1,5 @@</i>
+<i class="ctx"> def download(blob, local, reason)</i>
+<i class="del">-  @transfer.download(@tree, blob, local, reason)</i>
+<i class="add">+  @transfer.download(@tree, blob, nil, reason)</i>
+<i class="ctx">   @state.record(blob.key, blob.sha256)</i>
+<i class="ctx">   @summary.downloaded += 1</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Client::SyncState#record</code> <span class="muted">— выжило 1 из 36</span></h4><pre><i class="ctx">@@ -1,7 +1,7 @@</i>
+<i class="ctx"> def record(key, sha256)</i>
+<i class="del">-  if @files[key] == sha256</i>
+<i class="add">+  if self[key] == sha256</i>
+<i class="ctx">     return</i>
+<i class="ctx">   end</i>
+<i class="ctx">   @files[key] = sha256</i>
+<i class="ctx">   @dirty = true</i>
+<i class="ctx"> end</i></pre><h4><code>Syncbox::Server::App#json</code> <span class="muted">— выжило 1 из 31</span></h4><pre><i class="ctx">@@ -1,4 +1,4 @@</i>
+<i class="ctx"> def json(status, payload, extra_headers = {})</i>
+<i class="ctx">   body = JSON.generate(payload)</i>
+<i class="del">-  [status, JSON_HEADERS.merge(extra_headers), [body]]</i>
+<i class="add">+  [status, JSON_HEADERS.merge(extra_headers), body]</i>
+<i class="ctx"> end</i></pre></details>
+
+<h2>Что видно</h2>
+<ul>
+<li>Разрыв между кампанией автора и нашими — не проценты, а кратность: 26.3% у Sonnet против 76.6%–85.5% у Opus и Fable. У Sonnet тесты в основном проверяют, что команда отработала, а не что она сделала: в <code>Sync#run</code> из 529 мутаций выжило 520, а тело <code>FailureReport#print</code> можно заменить на <code>raise</code> — ни один из 124 тестов это не вызывает.</li>
+<li>Между Opus 5.5 и Fable 5.1 устойчивой разницы нет: четыре прогона лежат в коридоре 76.6%–85.5%, и порядок меняется с версией Ruby (на 3.3.12 выше Opus на 0.2 п.п., на 4.0.7 — на 8.9 п.п.). Доверительные интервалы на Ruby 4 не пересекаются, но они считаны по мутациям одной случайной выборки методов: у Fable на Ruby 4 в выборку попали <code>Options.build_parser</code> и <code>Server::Runner#run</code> — методы, которые тесты по построению почти не трогают (151 выживших из 240). Это свойство выборки, не модели; разница между версиями Ruby — внутри того же шума.</li>
+<li>У Opus и Fable выжившие мутанты сосредоточены в обвязке — разборе ответов сервера, форматировании сообщений об ошибках, опциях CLI (см. столбец «больше всего выживших»); у Sonnet — в основной логике push/pull/sync/status.</li>
+<li>Измерение детерминировано по входу (снимок, выборка, seed) и воспроизводимо с точностью до таймаутов, но дорого: 25% методов — это 4.9 ч на пять реализаций. Полный прогон имеет смысл только для одной реализации за раз.</li>
+</ul>
+</div></body></html>

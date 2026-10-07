@@ -1,0 +1,87 @@
+# All Docker plumbing for Syncbox lives here. The run-server / run-client /
+# run-tests wrappers only export the variables below and call
+# `docker compose`.
+#
+#   SYNCBOX_HOST_DATA_DIR  host directory bind-mounted as the server's data dir
+#                          (absolute path; default ./data in the repo)
+#   SYNCBOX_PORT           port the server listens on, both in the container
+#                          and on the host (default 8080)
+#   SYNCBOX_PUBLISH_ADDR   host interface the port is published on
+#                          (default 127.0.0.1; set 0.0.0.0 to expose on the LAN)
+#   SYNCBOX_UID/GID        user the server and the client run as, so files in
+#                          the data dir / synced dir belong to the invoking
+#                          host user (default 1000)
+#   SYNCBOX_CLIENT_DIR     host directory the client works on, bind-mounted at
+#                          /work (absolute path; must be set for the client)
+#   SYNCBOX_SERVER         passed through to the client (server URL fallback)
+
+services:
+  server:
+    # Fixed tag: run-server uses a separate compose project per port, and
+    # they should all share one image rather than each building its own.
+    image: syncbox-server:local
+    build:
+      context: .
+      target: server
+    init: true
+    # Docker's default bridge: no per-project network has to be created, so
+    # several servers (on different ports) can be started concurrently.
+    network_mode: bridge
+    user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+    environment:
+      SYNCBOX_DATA_DIR: /data
+      SYNCBOX_PORT: "${SYNCBOX_PORT:-8080}"
+    ports:
+      - "${SYNCBOX_PUBLISH_ADDR:-127.0.0.1}:${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    volumes:
+      - type: bind
+        source: "${SYNCBOX_HOST_DATA_DIR:-./data}"
+        target: /data
+        bind:
+          create_host_path: true
+
+  client:
+    image: syncbox-client:local
+    build:
+      context: .
+      target: client
+    profiles: [client]
+    init: true
+    # The server URL normally points at the host's loopback, where run-server
+    # publishes its port; only the host's network namespace can reach that.
+    network_mode: host
+    user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+    environment:
+      - SYNCBOX_SERVER
+    volumes:
+      - type: bind
+        # The default only keeps other services usable without it; run-client
+        # always sets a real directory.
+        source: "${SYNCBOX_CLIENT_DIR:-/nonexistent/SYNCBOX_CLIENT_DIR-unset}"
+        target: /work
+        bind:
+          create_host_path: false
+
+  test:
+    build:
+      context: .
+      target: test
+    profiles: [test]
+    init: true
+    # Tests only talk to servers they start themselves on loopback.
+    network_mode: none
+
+  # Toolbox for dependency management without Node on the host, e.g.
+  #   docker compose run --rm dev npm install --save-dev <pkg>
+  dev:
+    image: node:20-bookworm-slim
+    profiles: [dev]
+    working_dir: /app
+    user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+    environment:
+      npm_config_cache: /tmp/.npm
+      npm_config_update_notifier: "false"
+    volumes:
+      - type: bind
+        source: .
+        target: /app

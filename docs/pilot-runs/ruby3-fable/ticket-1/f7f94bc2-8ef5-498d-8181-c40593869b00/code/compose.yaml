@@ -1,0 +1,28 @@
+# Единый источник правды для сборки, сети и volume'ов Syncbox.
+# Обёртки run-server / run-tests вызывают только `docker compose`.
+name: syncbox
+
+x-ruby: &ruby
+  build: .
+  image: syncbox:dev
+  # Запускаемся под uid/gid вызывающего пользователя (обёртки передают их
+  # через SYNCBOX_UID/SYNCBOX_GID), чтобы файлы в примонтированном каталоге
+  # данных не оказались принадлежащими root'у на хосте.
+  user: "${SYNCBOX_UID:-1000}:${SYNCBOX_GID:-1000}"
+
+services:
+  server:
+    <<: *ruby
+    command: ["bundle", "exec", "bin/syncbox-server"]
+    environment:
+      SYNCBOX_DATA_DIR: /data
+      SYNCBOX_PORT: "${SYNCBOX_PORT:-8080}"
+    # Порт публикуется только при `run --service-ports` или `up`.
+    ports:
+      - "${SYNCBOX_PORT:-8080}:${SYNCBOX_PORT:-8080}"
+    volumes:
+      - "${SYNCBOX_DATA_DIR:-./data}:/data"
+
+  test:
+    <<: *ruby
+    command: ["bundle", "exec", "rake", "test"]

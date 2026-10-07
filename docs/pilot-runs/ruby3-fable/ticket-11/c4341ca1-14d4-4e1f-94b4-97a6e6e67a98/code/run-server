@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Запуск HTTP-сервера Syncbox в Docker-контейнере через docker compose.
+#
+#   run-server --data-dir <path> [--port <n>]
+#
+# Вместо флагов можно задать SYNCBOX_DATA_DIR / SYNCBOX_PORT (флаг имеет
+# приоритет). Сервер работает в текущем процессе (без демонизации):
+# Ctrl-C / SIGTERM / SIGHUP останавливают и удаляют контейнер.
+#
+# Каждый запуск живёт в своём compose-проекте `syncbox-<port>`, поэтому
+# несколько серверов на разных портах не мешают друг другу, а остановка
+# одного не трогает остальные.
+set -uo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<USAGE
+Usage: run-server --data-dir <path> [--port <n>]
+
+Options:
+  --data-dir PATH  host directory where blobs are stored (required; env: SYNCBOX_DATA_DIR)
+  --port N         TCP port to listen on (default: 8080; env: SYNCBOX_PORT)
+  -h, --help       show this help
+USAGE
+}
+
+die() {
+  echo "run-server: $*" >&2
+  usage >&2
+  exit 2
+}
+
+data_dir="${SYNCBOX_DATA_DIR:-}"
+port="${SYNCBOX_PORT:-8080}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --data-dir)
+      [[ $# -ge 2 ]] || die "--data-dir requires a value"
+      data_dir="$2"; shift 2 ;;
+    --data-dir=*)
+      data_dir="${1#*=}"; shift ;;
+    --port)
+      [[ $# -ge 2 ]] || die "--port requires a value"
+      port="$2"; shift 2 ;;
+    --port=*)
+      port="${1#*=}"; shift ;;
+    -h|--help)
+      usage; exit 0 ;;
+    *)
+      die "unknown argument: $1" ;;
+  esac
+done
+
+[[ -n "$data_dir" ]] || die "--data-dir is required (or set SYNCBOX_DATA_DIR)"
+[[ "$port" =~ ^[0-9]+$ && "$port" -ge 1 && "$port" -le 65535 ]] || die "invalid port: '$port'"
+
+# Каталог создаём от имени вызывающего пользователя, чтобы он не достался
+# Docker'у (тот создал бы его под root'ом), и передаём абсолютный путь.
+mkdir -p "$data_dir" || exit 1
+data_dir="$(cd "$data_dir" && pwd -P)" || exit 1
+
+export SYNCBOX_DATA_DIR="$data_dir"
+export SYNCBOX_PORT="$port"
+export SYNCBOX_UID="$(id -u)"
+export SYNCBOX_GID="$(id -g)"
+
+compose=(docker compose -f "$root/compose.yaml" -p "syncbox-$port" --progress quiet)
+
+# `docker compose run` не пробрасывает сигналы в контейнер без TTY — по
+# сигналу он просто отсоединяется, оставляя сервер работать. Поэтому compose
+# запускается фоном, а остановкой занимается обёртка: `down` гасит контейнер
+# (SIGTERM → корректное завершение Puma) и убирает сеть проекта.
+cleanup() {
+  "${compose[@]}" down --remove-orphans --timeout 10 >/dev/null 2>&1 || true
+}
+
+child=
+on_signal() {
+  trap '' INT TERM HUP
+  cleanup
+}
+trap on_signal INT TERM HUP
+trap cleanup EXIT
+
+"${compose[@]}" run --rm --build -T --service-ports server &
+child=$!
+
+# `wait` прерывается перехваченным сигналом; после обработчика ждём дальше,
+# пока compose не завершится по-настоящему, и отдаём его код возврата.
+status=0
+while kill -0 "$child" 2>/dev/null; do
+  wait "$child"
+  status=$?
+done
+exit "$status"

@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Usage: run-server --data-dir <path> [--port <n>]
+#   (or SYNCBOX_DATA_DIR / SYNCBOX_PORT in the environment)
+#
+# Runs the Syncbox server in the foreground inside a Docker container via
+# docker compose. The host data directory is bind-mounted into the container
+# and the port is published on the host under the same number.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE=(docker compose --project-directory "$ROOT" -f "$ROOT/compose.yaml")
+
+usage() {
+  cat <<USAGE
+Usage: run-server --data-dir <path> [--port <n>]
+
+Options:
+  --data-dir <path>  Directory where blobs are stored (required).
+                     Env: SYNCBOX_DATA_DIR
+  --port <n>         TCP port to listen on, 1-65535 (default: 8080).
+                     Env: SYNCBOX_PORT
+  -h, --help         Show this help and exit.
+USAGE
+}
+
+die() {
+  echo "run-server: $*" >&2
+  echo >&2
+  usage >&2
+  exit 2
+}
+
+data_dir="${SYNCBOX_DATA_DIR:-}"
+port="${SYNCBOX_PORT:-}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --data-dir|--port)
+      [[ $# -ge 2 ]] || die "$1 requires a value"
+      if [[ "$1" == --data-dir ]]; then data_dir="$2"; else port="$2"; fi
+      shift 2 ;;
+    --data-dir=*) data_dir="${1#*=}"; shift ;;
+    --port=*) port="${1#*=}"; shift ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+
+[[ -n "$data_dir" ]] || die "data directory is required: pass --data-dir <path> or set SYNCBOX_DATA_DIR"
+
+port="${port:-8080}"
+if ! [[ "$port" =~ ^[0-9]+$ ]] || (( 10#$port < 1 || 10#$port > 65535 )); then
+  die "invalid port: \"$port\" (expected an integer 1-65535)"
+fi
+port=$((10#$port))
+
+# Create the directory as the invoking user (otherwise Docker would create
+# it as root) and resolve it to an absolute path for the bind mount.
+mkdir -p -- "$data_dir"
+data_dir="$(cd -- "$data_dir" && pwd -P)"
+
+export SYNCBOX_COMPOSE_DATA_DIR="$data_dir"
+export SYNCBOX_COMPOSE_PORT="$port"
+export SYNCBOX_COMPOSE_UID="$(id -u)"
+export SYNCBOX_COMPOSE_GID="$(id -g)"
+
+# Stop signals are trapped before anything is started, so there is no window
+# in which the wrapper can die and leave a container behind. Every stop
+# signal is relayed as SIGTERM: background jobs of a non-interactive shell
+# start with SIGINT ignored, so compose would never see a forwarded SIGINT.
+child=
+stopping=0
+stop() {
+  stopping=1
+  if [[ -n "$child" ]]; then kill -TERM "$child" 2>/dev/null || true; fi
+}
+trap stop TERM INT HUP
+
+# Build (a cached no-op when nothing changed) so the container always runs
+# the current source. Output is kept quiet unless the build fails.
+if ! build_log="$("${COMPOSE[@]}" build --quiet server 2>&1)"; then
+  echo "$build_log" >&2
+  echo "run-server: docker compose build failed" >&2
+  exit 1
+fi
+if [[ $stopping -eq 1 ]]; then
+  exit 0
+fi
+
+# One compose project per port: a port can host only one server at a time,
+# so this lets several servers run side by side without stepping on each
+# other's containers.
+PROJECT=(-p "syncbox-server-$port")
+
+# `docker compose run` does not forward SIGTERM to the container, so the
+# server would outlive this wrapper. `up` does stop it on SIGTERM; we run it
+# as a child, relay stop signals to it, and always `down` at the end so no
+# container keeps holding the port.
+cleanup() {
+  "${COMPOSE[@]}" "${PROJECT[@]}" down --timeout 10 >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+"${COMPOSE[@]}" "${PROJECT[@]}" up \
+  --no-build --quiet-pull --no-log-prefix --exit-code-from server server &
+child=$!
+# A signal that arrived between the build and the line above.
+if [[ $stopping -eq 1 ]]; then
+  stop
+fi
+
+# `wait` returns early when a trapped signal arrives; keep waiting until the
+# child has actually exited so that its exit status is the one we report.
+status=0
+while :; do
+  wait "$child" && status=0 || status=$?
+  kill -0 "$child" 2>/dev/null || break
+done
+
+# compose reports a requested graceful stop as 130; like the server itself,
+# treat a shutdown we asked for as success.
+if [[ $stopping -eq 1 && $status -eq 130 ]]; then
+  status=0
+fi
+exit "$status"

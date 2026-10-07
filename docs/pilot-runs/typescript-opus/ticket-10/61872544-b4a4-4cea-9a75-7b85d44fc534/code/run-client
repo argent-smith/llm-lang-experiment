@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Runs the Syncbox CLI client (`syncbox`) in a Docker container (via docker
+# compose) and exits with its exit code.
+#
+#   run-client <push|pull|status|sync> <dir> --server <url>
+#
+# Arguments are forwarded to the client as given, except <dir>: that host
+# directory is bind-mounted into the container at /work and the client gets
+# that path instead. --server falls back to SYNCBOX_SERVER. The container
+# shares the host's network, so http://127.0.0.1:<port> reaches a server
+# started with run-server. sync keeps its state in a docker volume, keyed by
+# the host directory and the server URL.
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+mount_point=/work
+
+# Only the command and <dir> (the first two positional arguments) are picked
+# out here; validating everything else is left to the client, so its usage
+# errors stay the same.
+args=()
+command=""
+dir=""
+positional=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)
+      args+=("$1")
+      shift
+      if [[ $# -gt 0 ]]; then args+=("$1"); shift; fi
+      ;;
+    -?*) args+=("$1"); shift ;;
+    *)
+      positional=$((positional + 1))
+      if (( positional == 1 )); then
+        command="$1"
+      fi
+      if (( positional == 2 )) && [[ -n "$1" ]]; then
+        dir="$1"
+        args+=("$mount_point")
+      else
+        args+=("$1")
+      fi
+      shift
+      ;;
+  esac
+done
+
+cleanup=""
+if [[ -n "$dir" ]]; then
+  if [[ ! -e "$dir" ]]; then
+    echo "run-client: $dir: no such directory" >&2
+    exit 1
+  fi
+  if [[ ! -d "$dir" ]]; then
+    echo "run-client: $dir: not a directory" >&2
+    exit 1
+  fi
+  host_dir="$(cd -- "$dir" && pwd -P)"
+else
+  # No directory to work on (--help, usage errors): mount an empty one.
+  host_dir="$(mktemp -d)"
+  cleanup="$host_dir"
+fi
+trap '[[ -z "$cleanup" ]] || rmdir -- "$cleanup"' EXIT
+
+export SYNCBOX_CLIENT_DIR="$host_dir"
+# status only reads <dir>: mount it read-only, so it can't change it even by mistake.
+export SYNCBOX_CLIENT_DIR_RO=false
+[[ "$command" != status ]] || SYNCBOX_CLIENT_DIR_RO=true
+export SYNCBOX_UID="$(id -u)"
+export SYNCBOX_GID="$(id -g)"
+
+project="$(basename "$repo" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_\n-' '-')"
+project="${project%$'\n'}-client"
+
+# --build is a no-op on a warm cache and picks up source changes otherwise;
+# --progress quiet keeps the build output from mixing with the client's.
+status=0
+docker compose --progress quiet --project-directory "$repo" -f "$repo/compose.yaml" -p "$project" \
+  run --rm --build -T client ${args[@]+"${args[@]}"} || status=$?
+exit "$status"

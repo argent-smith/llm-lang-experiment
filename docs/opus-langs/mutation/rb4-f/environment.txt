@@ -1,0 +1,18 @@
+warning: parser/current is loading parser/ruby33, which recognizes 3.3.x-compliant syntax, but you are running 4.0.7.
+Please see https://github.com/whitequark/parser#compatibility-with-ruby-mri.
+Mutant environment:
+Usage:           opensource
+Matcher:         #<Mutant::Matcher::Config subjects: [Syncbox*]>
+Integration:     minitest
+Jobs:            8
+Includes:        []
+Requires:        ["./mutant_boot"]
+Operators:       light
+MutationTimeout: 5
+Selection:       expression
+Subjects:        127
+All-Tests:       280
+Available-Tests: 280
+Selected-Tests:  280
+Tests/Subject:   2.20 avg
+Mutations:       8476

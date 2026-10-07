@@ -1,0 +1,7 @@
+.git
+.gitignore
+.dockerignore
+data/
+tmp/
+*.md
+.ticket-*-prompt.txt
