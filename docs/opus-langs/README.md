@@ -66,3 +66,22 @@ scripts/make-pinned-prompts.py --out docs/opus-langs/prompts --source-lang types
   сравнимо.
 - Сеть контейнера открыта; выход агента в интернет проверяется по
   транскриптам после прогона.
+
+## Отчёты по коду всех кампаний
+
+Два отчёта поверх снимков кода всех одиннадцати прогонов (четыре Sonnet 5,
+пять Opus 5.5, два Fable 5.1), статические HTML без JS:
+
+- [code-report.html](code-report.html) — формальные критерии без запуска
+  кода: размер, переделки и локальность правок по тикетам, дублирование
+  (jscpd). Генератор — `scripts/make-code-report.py` (общее для отчётов —
+  `scripts/campaignlib.py`).
+- [mutation-report.html](mutation-report.html) — mutation score штатных
+  тестов пяти Ruby-реализаций (mutant 0.17 внутри Docker-образа каждой
+  реализации). Прогон — `scripts/mutation/run-campaign.sh`, архив
+  результатов — [mutation/](mutation/) (по ключу прогона: итоги, список
+  методов и выборка, число мутаций на метод, отчёт mutant без строк
+  прогресса; `root-run/` — отвергнутое первое измерение под root для
+  оценки воспроизводимости). Генератор — `scripts/make-mutation-report.py`.
+  У Opus и Fable наборы тестов идут 10–30 с на прогон, поэтому мутации
+  гоняются по случайной выборке 25% методов (seed 42); у Sonnet — по всем.

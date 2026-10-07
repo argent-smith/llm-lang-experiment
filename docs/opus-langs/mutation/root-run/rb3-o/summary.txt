@@ -1,0 +1,13 @@
+субъектов всего: 99, в выборке: 25
+Mutations:       1637
+Alive mutations require one of two actions:
+Subjects:        25
+Mutations:       1637
+Results:         1637
+Kills:           1284
+Alive:           353
+Timeouts:        3
+Runtime:         2533.14s
+Killtime:        14269.28s
+Mutations/s:     0.65
+Coverage:        78.43%

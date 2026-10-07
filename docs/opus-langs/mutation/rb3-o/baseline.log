@@ -1,0 +1,11 @@
+Run options: --seed 48374
+
+# Running:
+
+..................................................................................../usr/local/lib/ruby/3.3.0/net/http/generic_request.rb:263: warning: net/http: Content-Type did not set; using application/x-www-form-urlencoded
+.....................................................................................................................................
+
+Finished in 17.841765s, 12.1625 runs/s, 812.3075 assertions/s.
+
+217 runs, 14493 assertions, 0 failures, 0 errors, 0 skips
+baseline exit=0

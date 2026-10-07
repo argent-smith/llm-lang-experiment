@@ -1,0 +1,6 @@
+# Overlay над Gemfile реализации: добавляет mutant, не меняя её Gemfile.
+# Подключается через BUNDLE_GEMFILE из scripts/mutation/run-mutant.sh.
+eval_gemfile File.expand_path("Gemfile", __dir__)
+gem "mutant", "~> 0.17.0"
+gem "mutant-minitest", "~> 0.17.0"
+gem "mutant-rspec", "~> 0.17.0"
